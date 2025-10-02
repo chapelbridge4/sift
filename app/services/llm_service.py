@@ -14,13 +14,108 @@ from app.config import get_settings
 from app.utils.async_helpers import async_retry
 
 
+class ModelManager:
+    """Manages LLM model selection and configuration."""
+
+    def __init__(self, settings):
+        self.settings = settings
+        self.model_profiles = settings.MODEL_PROFILES
+
+    def get_model_for_profile(self, profile: str = None) -> str:
+        """
+        Get model name for a given profile.
+
+        Args:
+            profile: Model profile name (fast/balanced/quality/reasoning)
+
+        Returns:
+            Model name string
+        """
+        # Check for custom model override
+        if self.settings.CUSTOM_MODEL_NAME:
+            logger.info(f"Using custom model override: {self.settings.CUSTOM_MODEL_NAME}")
+            return self.settings.CUSTOM_MODEL_NAME
+
+        # Use specified profile or default
+        profile_to_use = profile or self.settings.MODEL_PROFILE
+
+        if profile_to_use not in self.model_profiles:
+            logger.warning(
+                f"Unknown profile '{profile_to_use}', falling back to 'balanced'"
+            )
+            profile_to_use = "balanced"
+
+        model_config = self.model_profiles[profile_to_use]
+        model_name = model_config["model"]
+
+        logger.info(f"Selected model '{model_name}' for profile '{profile_to_use}'")
+        return model_name
+
+    def get_model_config(self, profile: str = None) -> Dict[str, Any]:
+        """
+        Get full configuration for a model profile.
+
+        Args:
+            profile: Model profile name
+
+        Returns:
+            Dictionary with model configuration
+        """
+        profile_to_use = profile or self.settings.MODEL_PROFILE
+
+        if profile_to_use not in self.model_profiles:
+            profile_to_use = "balanced"
+
+        return self.model_profiles[profile_to_use].copy()
+
+    async def validate_model_availability(self, client: AsyncClient, model_name: str) -> bool:
+        """
+        Validate if a model is available in Ollama.
+
+        Args:
+            client: Ollama async client
+            model_name: Model name to check
+
+        Returns:
+            True if model is available
+        """
+        try:
+            models_response = await client.list()
+            available_models = [model.get('name', '') for model in models_response.get('models', [])]
+
+            is_available = any(model_name in model for model in available_models)
+
+            if is_available:
+                logger.info(f"Model '{model_name}' is available in Ollama")
+            else:
+                logger.warning(
+                    f"Model '{model_name}' not found. Available models: {available_models}. "
+                    f"Download with: ollama pull {model_name}"
+                )
+
+            return is_available
+
+        except Exception as e:
+            logger.error(f"Error checking model availability: {str(e)}")
+            return False
+
+    def list_available_profiles(self) -> Dict[str, Dict[str, Any]]:
+        """Get all available model profiles with their configurations."""
+        return self.model_profiles.copy()
+
+
 class LLMService:
-    """Service for interacting with Ollama LLM."""
+    """Service for interacting with Ollama LLM with dynamic model selection."""
 
     def __init__(self):
         self.settings = get_settings()
         self.client: Optional[AsyncClient] = None
-        self.model_name = self.settings.OLLAMA_MODEL
+        self.model_manager = ModelManager(self.settings)
+
+        # Default model (can be changed with set_model_profile)
+        self.current_profile = None
+        self.model_name = self.model_manager.get_model_for_profile()
+        self.current_config = self.model_manager.get_model_config()
 
     async def initialize(self):
         """Initialize Ollama client."""
@@ -54,6 +149,33 @@ class LLMService:
 
         except Exception as e:
             logger.warning(f"Could not list models: {str(e)}")
+
+    def set_model_profile(self, profile: str = None) -> str:
+        """
+        Set model based on profile and return the model name.
+
+        Args:
+            profile: Model profile (fast/balanced/quality/reasoning)
+
+        Returns:
+            Selected model name
+        """
+        self.current_profile = profile
+        self.model_name = self.model_manager.get_model_for_profile(profile)
+        self.current_config = self.model_manager.get_model_config(profile)
+
+        logger.info(
+            f"Model switched to '{self.model_name}' "
+            f"(profile: {profile or 'default'}, "
+            f"max_tokens: {self.current_config['max_tokens']}, "
+            f"temperature: {self.current_config['temperature']})"
+        )
+
+        return self.model_name
+
+    def get_current_model(self) -> str:
+        """Get currently selected model name."""
+        return self.model_name
 
     @async_retry(max_retries=3, delay=1.0, backoff=2.0)
     async def generate(
@@ -151,23 +273,37 @@ class LLMService:
         query: str,
         retrieved_contexts: List[str],
         conversation_history: Optional[List[Dict[str, str]]] = None,
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
+        model_profile: Optional[str] = None,
     ) -> str:
         """
-        Generate RAG response using retrieved contexts.
+        Generate RAG response using retrieved contexts with dynamic model selection.
 
         Args:
             query: User query
             retrieved_contexts: List of retrieved document texts
             conversation_history: Optional conversation history
-            temperature: Sampling temperature
+            temperature: Sampling temperature (overrides profile default if specified)
+            model_profile: Model profile to use (fast/balanced/quality/reasoning)
 
         Returns:
             Generated response
         """
         await self.initialize()
 
-        logger.info(f"Generating RAG response for query with {len(retrieved_contexts)} contexts")
+        # Set model profile if specified
+        if model_profile:
+            self.set_model_profile(model_profile)
+
+        # Use model config values or provided overrides
+        final_temperature = temperature if temperature is not None else self.current_config.get('temperature', 0.7)
+        max_tokens = self.current_config.get('max_tokens', 300)
+
+        logger.info(
+            f"Generating RAG response with model '{self.model_name}' "
+            f"(profile: {model_profile or 'default'}, temp: {final_temperature}, "
+            f"max_tokens: {max_tokens}, contexts: {len(retrieved_contexts)})"
+        )
 
         # Build context string
         context_str = "\n\n---\n\n".join([
@@ -203,16 +339,16 @@ Please provide a concise answer (2-4 sentences) based on the context above."""
 
                 response = await self.chat(
                     messages=messages,
-                    temperature=temperature,
-                    max_tokens=300  # Limit response length
+                    temperature=final_temperature,
+                    max_tokens=max_tokens
                 )
             else:
                 # Use simple generation
                 response = await self.generate(
                     prompt=rag_prompt,
                     system_prompt=system_prompt,
-                    temperature=temperature,
-                    max_tokens=300  # Limit response length
+                    temperature=final_temperature,
+                    max_tokens=max_tokens
                 )
 
             logger.info("RAG response generated successfully")

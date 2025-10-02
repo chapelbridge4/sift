@@ -335,7 +335,8 @@ async def query(request: QueryRequest):
             top_k=request.top_k or 10,
             use_hybrid=True,  # Always use hybrid search for best results
             conversation_id=request.conversation_id,
-            temperature=0.7
+            temperature=None,  # Use model profile default
+            model_profile=request.model_profile.value if request.model_profile else None
         )
 
         processing_time = time.time() - start_time
@@ -364,7 +365,8 @@ async def query(request: QueryRequest):
             retrieved_documents=retrieved_docs,
             retrieval_method=f"hybrid_{request.fusion_method.value}",
             processing_time_seconds=processing_time,
-            conversation_id=result.get("conversation_id")
+            conversation_id=result.get("conversation_id"),
+            model_used=result.get("model_used")
         )
 
     except HTTPException:
@@ -410,6 +412,68 @@ async def list_collections():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error listing collections: {str(e)}"
+        )
+
+
+@app.get("/models/profiles", tags=["Models"])
+async def get_model_profiles():
+    """
+    Get available model profiles with their configurations.
+
+    Returns:
+        Dictionary of model profiles with specs
+    """
+    try:
+        profiles = brain.llm_service.model_manager.list_available_profiles()
+        current_model = brain.llm_service.get_current_model()
+        current_profile = brain.llm_service.current_profile or settings.MODEL_PROFILE
+
+        return {
+            "profiles": profiles,
+            "current_profile": current_profile,
+            "current_model": current_model
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting model profiles: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting model profiles: {str(e)}"
+        )
+
+
+@app.get("/models/available", tags=["Models"])
+async def get_available_models():
+    """
+    Get list of models currently available in Ollama.
+
+    Returns:
+        List of installed models with their details
+    """
+    try:
+        models_response = await brain.llm_service.client.list()
+        models = models_response.get('models', [])
+
+        model_list = []
+        for model in models:
+            model_list.append({
+                "name": model.get('name', ''),
+                "size": model.get('size', 0),
+                "modified_at": model.get('modified_at', ''),
+                "details": model.get('details', {})
+            })
+
+        return {
+            "models": model_list,
+            "total": len(model_list),
+            "current_model": brain.llm_service.get_current_model()
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing available models: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing available models: {str(e)}"
         )
 
 

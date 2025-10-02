@@ -28,8 +28,40 @@ class Settings(BaseSettings):
 
     # Ollama Configuration
     OLLAMA_HOST: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.2:3b"
+    OLLAMA_MODEL: str = "llama3.2:3b"  # Deprecated: use MODEL_PROFILE instead
     OLLAMA_TIMEOUT: int = 120
+
+    # Model Selection Configuration
+    MODEL_PROFILE: str = "balanced"  # fast/balanced/quality/reasoning
+    CUSTOM_MODEL_NAME: str | None = None  # Override model selection
+
+    # Model Profiles - Optimized for MacBook Air M1
+    MODEL_PROFILES: dict = {
+        "fast": {
+            "model": "qwen2.5:0.5b",
+            "max_tokens": 200,
+            "temperature": 0.8,
+            "description": "Ultra-fast responses (~40-50 tokens/s)",
+        },
+        "balanced": {
+            "model": "qwen2.5:1.5b",
+            "max_tokens": 300,
+            "temperature": 0.7,
+            "description": "Best speed/quality balance (~30-40 tokens/s)",
+        },
+        "quality": {
+            "model": "qwen2.5:3b",
+            "max_tokens": 400,
+            "temperature": 0.7,
+            "description": "Higher quality responses (~20-30 tokens/s)",
+        },
+        "reasoning": {
+            "model": "qwen2.5:3b-instruct",
+            "max_tokens": 500,
+            "temperature": 0.6,
+            "description": "Step-by-step reasoning mode (~15-25 tokens/s)",
+        },
+    }
 
     # Embedding Models
     DENSE_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"

@@ -24,6 +24,14 @@ class FusionMethod(str, Enum):
     DBSF = "dbsf"  # Distribution-Based Score Fusion
 
 
+class ModelProfile(str, Enum):
+    """LLM model profiles optimized for different use cases."""
+    FAST = "fast"  # qwen2.5:0.5b - Ultra-fast responses (~40-50 tokens/s)
+    BALANCED = "balanced"  # qwen2.5:1.5b - Best speed/quality balance (~30-40 tokens/s)
+    QUALITY = "quality"  # qwen2.5:3b - Higher quality responses (~20-30 tokens/s)
+    REASONING = "reasoning"  # qwen3:3b - Step-by-step reasoning mode (~15-25 tokens/s)
+
+
 # Collection Management Schemas
 class CollectionCreate(BaseModel):
     """Request to create a new collection."""
@@ -97,6 +105,7 @@ class QueryRequest(BaseModel):
     use_llm: Optional[bool] = Field(default=True)
     conversation_id: Optional[str] = None
     include_metadata: Optional[bool] = Field(default=True)
+    model_profile: Optional[ModelProfile] = Field(default=None, description="LLM model profile to use (fast/balanced/quality/reasoning)")
 
 
 class RetrievedDocument(BaseModel):
@@ -116,6 +125,7 @@ class QueryResponse(BaseModel):
     retrieval_method: str
     processing_time_seconds: float
     conversation_id: Optional[str] = None
+    model_used: Optional[str] = Field(default=None, description="LLM model that was used for generation")
 
 
 # Brain Module Schemas

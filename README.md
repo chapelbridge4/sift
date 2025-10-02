@@ -40,6 +40,7 @@ This system implements a brain-inspired architecture for RAG, with specialized m
 
 ## Features
 
+- **Dynamic Model Selection**: Choose between 4 optimized LLM profiles (fast/balanced/quality/reasoning)
 - **Hybrid Search**: Combines dense semantic vectors with sparse BM25 for optimal retrieval
 - **Multi-Format Support**: Parse PDF, TXT, DOC, DOCX, XLS, XLSX documents
 - **Async Processing**: Fully async architecture for high performance
@@ -47,6 +48,7 @@ This system implements a brain-inspired architecture for RAG, with specialized m
 - **Conversation Context**: Maintains conversation history via Working Memory
 - **Importance Ranking**: Scores documents by relevance, recency, and importance
 - **Brain-Inspired Modules**: Modular architecture inspired by cognitive neuroscience
+- **M1 Optimized**: Qwen models optimized for Apple Silicon (3-6x faster than llama3.2:3b)
 
 ## Technology Stack
 
@@ -193,12 +195,72 @@ Key configuration options in `.env`:
 | `QDRANT_HOST` | Qdrant host | localhost |
 | `QDRANT_PORT` | Qdrant HTTP port | 6333 |
 | `OLLAMA_HOST` | Ollama API host | http://localhost:11434 |
-| `OLLAMA_MODEL` | LLM model name | llama3.2:3b |
+| `OLLAMA_MODEL` | LLM model name (deprecated) | llama3.2:3b |
+| `MODEL_PROFILE` | Model profile (fast/balanced/quality/reasoning) | balanced |
+| `CUSTOM_MODEL_NAME` | Override model selection | None |
 | `CHUNK_SIZE` | Document chunk size | 512 |
 | `CHUNK_OVERLAP` | Chunk overlap size | 128 |
 | `BATCH_SIZE` | Processing batch size | 32 |
 | `HYBRID_FUSION_METHOD` | Fusion method (rrf/dbsf) | rrf |
 | `TOP_K_RESULTS` | Default top-k results | 10 |
+
+### Dynamic Model Selection
+
+The system supports multiple LLM profiles optimized for different use cases. Choose the best profile for your needs:
+
+#### Model Profiles
+
+| Profile | Model | Speed | Quality | Use Case |
+|---------|-------|-------|---------|----------|
+| **fast** | qwen2.5:0.5b | ~40-50 tokens/s | Basic | Quick responses, simple queries |
+| **balanced** | qwen2.5:1.5b | ~30-40 tokens/s | Good | Default, best speed/quality balance |
+| **quality** | qwen2.5:3b | ~20-30 tokens/s | High | Complex queries, detailed answers |
+| **reasoning** | qwen2.5:3b-instruct | ~15-25 tokens/s | Highest | Step-by-step reasoning, analysis |
+
+#### Download Required Models
+
+```bash
+# Install Qwen models optimized for MacBook Air M1
+ollama pull qwen2.5:0.5b
+ollama pull qwen2.5:1.5b
+ollama pull qwen2.5:3b
+ollama pull qwen2.5:3b-instruct
+```
+
+#### Usage Examples
+
+**1. Set default profile in `.env`:**
+```bash
+MODEL_PROFILE=balanced  # Uses qwen2.5:1.5b by default
+```
+
+**2. Override via API (per-query):**
+```bash
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "my_documents",
+    "query": "Explain this concept in detail",
+    "model_profile": "quality"  # Use qwen2.5:3b for this query
+  }'
+```
+
+**3. Use custom model:**
+```bash
+CUSTOM_MODEL_NAME=llama3.2:3b  # Override all profiles
+```
+
+#### Model Management Endpoints
+
+**Get available models:**
+```bash
+curl http://localhost:8000/models/available
+```
+
+**Get model profiles:**
+```bash
+curl http://localhost:8000/models/profiles
+```
 
 ### Brain Module Weights
 

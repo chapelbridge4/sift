@@ -48,7 +48,8 @@ class PrefrontalCortex:
         top_k: int = 10,
         use_hybrid: bool = True,
         conversation_id: Optional[str] = None,
-        temperature: float = 0.7
+        temperature: Optional[float] = None,
+        model_profile: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Perform complex reasoning using retrieved context (executive function).
@@ -65,10 +66,11 @@ class PrefrontalCortex:
             top_k: Number of memories to retrieve
             use_hybrid: Use hybrid search
             conversation_id: Optional conversation ID for context
-            temperature: LLM sampling temperature
+            temperature: LLM sampling temperature (optional, uses model profile default if not set)
+            model_profile: Model profile to use (fast/balanced/quality/reasoning)
 
         Returns:
-            Dictionary with answer and metadata
+            Dictionary with answer and metadata including model_used
         """
         logger.info(f"PFC: Beginning reasoning process for query: {query[:50]}...")
 
@@ -109,7 +111,8 @@ class PrefrontalCortex:
                 query=query,
                 ranked_memories=ranked_memories,
                 conversation_history=conversation_history,
-                temperature=temperature
+                temperature=temperature,
+                model_profile=model_profile
             )
 
             # Step 5: Update working memory
@@ -123,13 +126,17 @@ class PrefrontalCortex:
                     {"role": "assistant", "content": answer}
                 )
 
-            logger.info("PFC: Reasoning complete, response generated")
+            # Get model name that was used
+            model_used = self.llm_service.get_current_model()
+
+            logger.info(f"PFC: Reasoning complete with model '{model_used}'")
 
             return {
                 "answer": answer,
                 "retrieved_documents": ranked_memories,
                 "num_documents_used": len(ranked_memories),
-                "conversation_id": conversation_id
+                "conversation_id": conversation_id,
+                "model_used": model_used
             }
 
         except Exception as e:
@@ -141,7 +148,8 @@ class PrefrontalCortex:
         query: str,
         ranked_memories: List[Dict[str, Any]],
         conversation_history: Optional[List[Dict[str, str]]],
-        temperature: float
+        temperature: Optional[float],
+        model_profile: Optional[str] = None
     ) -> str:
         """
         Integrate retrieved information and generate reasoned response.
@@ -151,6 +159,7 @@ class PrefrontalCortex:
             ranked_memories: Ranked documents from Amygdala
             conversation_history: Conversation history from Working Memory
             temperature: LLM temperature
+            model_profile: Model profile to use
 
         Returns:
             Generated answer
@@ -161,12 +170,13 @@ class PrefrontalCortex:
             for memory in ranked_memories[:5]  # Use top 5 for faster response
         ]
 
-        # Generate response using LLM
+        # Generate response using LLM with specified model profile
         answer = await self.llm_service.generate_rag_response(
             query=query,
             retrieved_contexts=contexts,
             conversation_history=conversation_history,
-            temperature=temperature
+            temperature=temperature,
+            model_profile=model_profile
         )
 
         return answer

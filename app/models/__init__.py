@@ -3,6 +3,7 @@
 from .schemas import (
     FileFormat,
     FusionMethod,
+    ModelProfile,
     CollectionCreate,
     CollectionResponse,
     CollectionDelete,
@@ -20,6 +21,7 @@ from .schemas import (
 __all__ = [
     "FileFormat",
     "FusionMethod",
+    "ModelProfile",
     "CollectionCreate",
     "CollectionResponse",
     "CollectionDelete",
