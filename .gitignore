@@ -1,0 +1,8 @@
+/.venv
+/qdrant_storage/collections
+/qdrant_storage
+/app/__pycache__
+/app/brain/__pycache__
+/app/models/__pycache__
+/app/services/__pycache__
+/app/utils/__pycache__
