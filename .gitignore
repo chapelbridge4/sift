@@ -1,4 +1,5 @@
 /.venv
+/logs
 /qdrant_storage/collections
 /qdrant_storage
 /app/__pycache__

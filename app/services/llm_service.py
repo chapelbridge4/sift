@@ -177,8 +177,8 @@ class LLMService:
 
         # Build RAG prompt
         system_prompt = """You are a helpful AI assistant that answers questions based on the provided context.
-Use the context information to provide accurate, detailed answers.
-If the context doesn't contain enough information to fully answer the question, acknowledge this and provide the best answer you can based on available information.
+Provide concise, accurate answers (2-4 sentences maximum unless more detail is explicitly requested).
+If the context doesn't contain enough information, acknowledge this briefly.
 Always ground your responses in the provided context."""
 
         rag_prompt = f"""Context Information:
@@ -186,7 +186,7 @@ Always ground your responses in the provided context."""
 
 Question: {query}
 
-Please provide a comprehensive answer based on the context above."""
+Please provide a concise answer (2-4 sentences) based on the context above."""
 
         try:
             if conversation_history:
@@ -203,14 +203,16 @@ Please provide a comprehensive answer based on the context above."""
 
                 response = await self.chat(
                     messages=messages,
-                    temperature=temperature
+                    temperature=temperature,
+                    max_tokens=300  # Limit response length
                 )
             else:
                 # Use simple generation
                 response = await self.generate(
                     prompt=rag_prompt,
                     system_prompt=system_prompt,
-                    temperature=temperature
+                    temperature=temperature,
+                    max_tokens=300  # Limit response length
                 )
 
             logger.info("RAG response generated successfully")

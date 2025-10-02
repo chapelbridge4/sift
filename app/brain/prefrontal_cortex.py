@@ -158,7 +158,7 @@ class PrefrontalCortex:
         # Extract text contexts from top-ranked memories
         contexts = [
             memory['text']
-            for memory in ranked_memories[:10]  # Use top 10
+            for memory in ranked_memories[:5]  # Use top 5 for faster response
         ]
 
         # Generate response using LLM
