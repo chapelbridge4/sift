@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "description": "RAG evaluation fixtures for brain_rag benchmark",
+  "queries": [
+    {
+      "id": "q1",
+      "query": "What is attention mechanism in transformers?",
+      "expected_keywords": ["attention", "transformer", "query", "key", "value", "softmax", "scaled_dot-product"],
+      "expected_topics": ["attention mechanism", "transformer architecture"]
+    },
+    {
+      "id": "q2",
+      "query": "Explain training stability methods",
+      "expected_keywords": ["gradient", "normalization", "learning_rate", "warmup", "loss", "optimizer"],
+      "expected_topics": ["training stability", "optimization"]
+    },
+    {
+      "id": "q3",
+      "query": "Describe model compression techniques",
+      "expected_keywords": ["quantization", "pruning", "distillation", "knowledge_distillation", "compression"],
+      "expected_topics": ["model compression", "efficiency"]
+    },
+    {
+      "id": "q4",
+      "query": "What are evaluation benchmarks for LLMs?",
+      "expected_keywords": ["MMLU", "HELM", "BIG-bench", "GLUE", "SuperGLUE", "benchmark"],
+      "expected_topics": ["LLM evaluation", "benchmarks"]
+    },
+    {
+      "id": "q5",
+      "query": "Explain scaling laws in deep learning",
+      "expected_keywords": ["scaling", "power_law", "compute", "parameters", "dataset_size", "emergent"],
+      "expected_topics": ["scaling laws", "compute optimal"]
+    }
+  ]
+}

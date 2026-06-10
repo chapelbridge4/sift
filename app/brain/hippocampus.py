@@ -111,7 +111,7 @@ class Hippocampus:
         Returns:
             List of recalled memories
         """
-        logger.info(f"Hippocampus: Recalling memories for query: {query[:50]}...")
+        logger.info(f"Hippocampus: Recalling memories for query_length={len(query)}")
 
         try:
             if use_hybrid:

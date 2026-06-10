@@ -1,396 +1,220 @@
-# Brain-Inspired RAG System
+# Brain-Inspired RAG
 
-A sophisticated Retrieval-Augmented Generation (RAG) system inspired by human brain architecture, featuring modular cognitive components that work together to provide intelligent document retrieval and question answering.
+Brain-Inspired RAG is a local-first Retrieval-Augmented Generation service built with FastAPI, Qdrant, FastEmbed, and Apple Silicon MLX inference. It indexes local documents into Qdrant and answers questions through a small set of brain-inspired orchestration modules.
 
-## Overview
+This repository is a research/prototype service, not a production-hosted API. It has no built-in authentication, and the ingestion endpoint accepts server-local file paths. Keep it bound to trusted local networks unless you add auth, authorization, and deployment hardening.
 
-This system implements a brain-inspired architecture for RAG, with specialized modules that mirror cognitive functions:
+## Current Status
 
-- **Hippocampus**: Memory formation, indexing, and retrieval
-- **Amygdala**: Importance scoring and emotional salience
-- **Prefrontal Cortex**: Executive control and reasoning
-- **Working Memory**: Contextual buffer for conversations
+- Local FastAPI API for collection management, document indexing, retrieval, and RAG responses.
+- Qdrant-backed dense, sparse, and hybrid retrieval paths.
+- MLX/MLX-VLM generation profiles tuned for an 8 GB Apple Silicon machine.
+- Focused unit tests for API contracts, parser behavior, startup boundaries, tuning helpers, and benchmark scaffolding.
+- Public-push hygiene is documented in [docs/audits/public-release-readiness-2026-06-10.md](docs/audits/public-release-readiness-2026-06-10.md).
+
+## Privacy And Safety
+
+- Do not commit `.env`, logs, Qdrant storage, SQLite runtime databases, imported document corpora, MLX caches, or benchmark result dumps. The `.gitignore` is configured for these local artifacts.
+- The `/upload_files` endpoint indexes files by server-local path. If the API is exposed to untrusted clients, a caller could ask it to read local files the service process can access.
+- Retrieved document payloads include source filenames and chunk text. Treat Qdrant storage as private data.
+- Application logs avoid raw query/prompt text by default, but deployment logging should still be reviewed before public hosting.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FastAPI REST API                          │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────────┐
-│              Prefrontal Cortex (PFC)                         │
-│         Executive Control & Orchestration                    │
-└─┬──────────────┬──────────────┬──────────────┬─────────────┘
-  │              │              │              │
-  │              │              │              │
-┌─▼────────┐ ┌──▼───────┐ ┌───▼────────┐ ┌───▼──────────┐
-│Hippocampus│ │ Amygdala │ │Working     │ │LLM Service   │
-│           │ │          │ │Memory      │ │(Ollama)      │
-│Memory     │ │Importance│ │Context     │ │              │
-│Storage &  │ │Scoring   │ │Buffer      │ │llama3.2:3b   │
-│Retrieval  │ │          │ │            │ │              │
-└─┬─────────┘ └──────────┘ └────────────┘ └──────────────┘
-  │
-┌─▼──────────────────────────────────────────────────────────┐
-│                  Qdrant Vector Database                      │
-│         Hybrid Search: Dense + Sparse (BM25)                 │
-└──────────────────────────────────────────────────────────────┘
+```text
+FastAPI API
+  -> PrefrontalCortex: orchestrates retrieval, ranking, working memory, generation
+  -> Hippocampus: collection management, document parsing, Qdrant indexing/search
+  -> Amygdala: importance scoring, optional reranking/diversification
+  -> WorkingMemory: in-memory conversation history
+  -> LLMService: local MLX/MLX-VLM generation
+  -> Qdrant: vector and sparse payload storage
 ```
 
-## Features
+Key directories:
 
-- **Dynamic Model Selection**: Choose between 4 optimized LLM profiles (fast/balanced/quality/reasoning)
-- **Hybrid Search**: Combines dense semantic vectors with sparse BM25 for optimal retrieval
-- **Multi-Format Support**: Parse PDF, TXT, DOC, DOCX, XLS, XLSX documents
-- **Async Processing**: Fully async architecture for high performance
-- **Batch Processing**: Efficient document processing with configurable batch sizes
-- **Conversation Context**: Maintains conversation history via Working Memory
-- **Importance Ranking**: Scores documents by relevance, recency, and importance
-- **Brain-Inspired Modules**: Modular architecture inspired by cognitive neuroscience
-- **M1 Optimized**: Qwen models optimized for Apple Silicon (3-6x faster than llama3.2:3b)
+- `app/main.py`: FastAPI app and HTTP endpoints.
+- `app/models/schemas.py`: Pydantic request/response contracts.
+- `app/brain/`: orchestration modules.
+- `app/services/`: Qdrant, embedding, parsing, and generation services.
+- `app/tuning/`: local benchmarking and quality utilities.
+- `scripts/run_benchmark.py`: reproducible local benchmark harness.
+- `tests/`: focused unit tests.
 
-## Technology Stack
+## Requirements
 
-- **Framework**: FastAPI (async)
-- **Vector Database**: Qdrant (Docker)
-- **LLM**: Ollama with llama3.2:3b
-- **Embeddings**:
-  - Dense: sentence-transformers/all-MiniLM-L6-v2
-  - Sparse: Qdrant/bm25 via FastEmbed
-- **Document Parsing**: PyPDF2, PyMuPDF, python-docx, openpyxl
-- **Search Fusion**: RRF (Reciprocal Rank Fusion) or DBSF (Distribution-Based Score Fusion)
+- Python 3.12 recommended.
+- Docker or Docker Desktop for Qdrant.
+- macOS on Apple Silicon for MLX generation.
+- Enough disk space for Hugging Face / MLX model caches.
 
-## Installation
+## Setup
 
-### Prerequisites
-
-1. **Python 3.9+**
-2. **Docker** (for Qdrant)
-3. **Ollama** with llama3.2:3b model
-
-### Setup Steps
-
-1. **Clone the repository**
 ```bash
 git clone <repository-url>
 cd Brain_rag
-```
 
-2. **Create and activate virtual environment**
-```bash
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
-3. **Install dependencies**
-```bash
+source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-4. **Start Qdrant (Docker)**
-```bash
-docker run -p 6333:6333 -p 6334:6334 \
-    -v $(pwd)/qdrant_storage:/qdrant/storage \
-    qdrant/qdrant
-```
-
-5. **Verify Ollama is running**
-```bash
-ollama list
-# Should show llama3.2:3b
-```
-
-6. **Configure environment**
-```bash
 cp .env.example .env
-# Edit .env with your configuration
 ```
 
-7. **Create logs directory**
+Start Qdrant:
+
 ```bash
-mkdir -p logs
+docker compose up -d qdrant
 ```
 
-## Usage
-
-### Start the API Server
+Or without Compose:
 
 ```bash
-# Using uvicorn directly
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Or using the main module
-python -m app.main
+docker run -p 127.0.0.1:6333:6333 -p 127.0.0.1:6334:6334 \
+  -v qdrant_storage:/qdrant/storage \
+  qdrant/qdrant:v1.18.0
 ```
 
-The API will be available at `http://localhost:8000`
+Start the API:
 
-Interactive docs: `http://localhost:8000/docs`
-
-### API Endpoints
-
-#### 1. Health Check
 ```bash
-curl http://localhost:8000/health
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-#### 2. Create Collection
+Open the interactive docs at `http://127.0.0.1:8000/docs`.
+
+## Configuration
+
+Copy `.env.example` to `.env` and adjust local values. Common settings:
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `QDRANT_HOST` | `localhost` | Local Qdrant host |
+| `QDRANT_PORT` | `6333` | HTTP port |
+| `QDRANT_API_KEY` | empty | Set only for protected remote Qdrant |
+| `CORS_ALLOW_ORIGINS` | local frontend origins | Comma-separated origins |
+| `MODEL_PROFILE` | `fast` | `fast`, `balanced`, or `quality` |
+| `DENSE_MODEL_NAME` | `sentence-transformers/all-MiniLM-L6-v2` | Dense embedding model |
+| `SPARSE_STRATEGY` | `bm25` | `bm25` or experimental `bm25plus` |
+| `CHUNK_SIZE` | `512` | Character chunk target |
+| `CHUNK_OVERLAP` | `128` | Overlap for large chunks |
+| `MAX_FILE_SIZE_MB` | `50` | Per-file parser limit |
+
+Current MLX profiles all use `mlx-community/Qwen3.5-4B-MLX-4bit` and differ by token cap and thinking mode:
+
+| Profile | Max Tokens | Thinking | Intended Use |
+| --- | ---: | --- | --- |
+| `fast` | 400 | off | Default local latency profile |
+| `balanced` | 600 | off | Longer answers when memory allows |
+| `quality` | 800 | on | Deeper reasoning experiments |
+
+Models download to the MLX/Hugging Face cache on first use. To prefetch manually:
+
 ```bash
-curl -X POST http://localhost:8000/build_collection \
+.venv/bin/python -m mlx_lm.download --model mlx-community/Qwen3.5-4B-MLX-4bit
+```
+
+## API Examples
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Create a collection:
+
+```bash
+curl -X POST http://127.0.0.1:8000/build_collection \
+  -H "Content-Type: application/json" \
+  -d '{"collection_name": "my_documents"}'
+```
+
+Index server-local files:
+
+```bash
+curl -X POST http://127.0.0.1:8000/upload_files \
   -H "Content-Type: application/json" \
   -d '{
     "collection_name": "my_documents",
-    "description": "My document collection"
-  }'
-```
-
-#### 3. Upload Documents
-```bash
-curl -X POST http://localhost:8000/upload_files \
-  -H "Content-Type: application/json" \
-  -d '{
-    "collection_name": "my_documents",
-    "file_paths": [
-      "/path/to/document1.pdf",
-      "/path/to/document2.txt"
-    ],
+    "file_paths": ["/absolute/path/to/document.pdf"],
     "batch_size": 32
   }'
 ```
 
-#### 4. Query with RAG
+Query with retrieval and generation:
+
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://127.0.0.1:8000/query \
   -H "Content-Type: application/json" \
   -d '{
     "collection_name": "my_documents",
-    "query": "What is the main topic of the documents?",
+    "query": "What is the main topic?",
     "top_k": 10,
     "fusion_method": "rrf",
+    "model_profile": "fast",
     "use_llm": true
   }'
 ```
 
-#### 5. List Collections
-```bash
-curl http://localhost:8000/collections
-```
-
-#### 6. Delete Collection
-```bash
-curl -X DELETE http://localhost:8000/delete_collection \
-  -H "Content-Type: application/json" \
-  -d '{
-    "collection_name": "my_documents"
-  }'
-```
-
-## Configuration
-
-Key configuration options in `.env`:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `QDRANT_HOST` | Qdrant host | localhost |
-| `QDRANT_PORT` | Qdrant HTTP port | 6333 |
-| `OLLAMA_HOST` | Ollama API host | http://localhost:11434 |
-| `OLLAMA_MODEL` | LLM model name (deprecated) | llama3.2:3b |
-| `MODEL_PROFILE` | Model profile (fast/balanced/quality/reasoning) | balanced |
-| `CUSTOM_MODEL_NAME` | Override model selection | None |
-| `CHUNK_SIZE` | Document chunk size | 512 |
-| `CHUNK_OVERLAP` | Chunk overlap size | 128 |
-| `BATCH_SIZE` | Processing batch size | 32 |
-| `HYBRID_FUSION_METHOD` | Fusion method (rrf/dbsf) | rrf |
-| `TOP_K_RESULTS` | Default top-k results | 10 |
-
-### Dynamic Model Selection
-
-The system supports multiple LLM profiles optimized for different use cases. Choose the best profile for your needs:
-
-#### Model Profiles
-
-| Profile | Model | Speed | Quality | Use Case |
-|---------|-------|-------|---------|----------|
-| **fast** | qwen2.5:0.5b | ~40-50 tokens/s | Basic | Quick responses, simple queries |
-| **balanced** | qwen2.5:1.5b | ~30-40 tokens/s | Good | Default, best speed/quality balance |
-| **quality** | qwen2.5:3b | ~20-30 tokens/s | High | Complex queries, detailed answers |
-| **reasoning** | qwen2.5:3b-instruct | ~15-25 tokens/s | Highest | Step-by-step reasoning, analysis |
-
-#### Download Required Models
+Retrieval-only query:
 
 ```bash
-# Install Qwen models optimized for MacBook Air M1
-ollama pull qwen2.5:0.5b
-ollama pull qwen2.5:1.5b
-ollama pull qwen2.5:3b
-ollama pull qwen2.5:3b-instruct
-```
-
-#### Usage Examples
-
-**1. Set default profile in `.env`:**
-```bash
-MODEL_PROFILE=balanced  # Uses qwen2.5:1.5b by default
-```
-
-**2. Override via API (per-query):**
-```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://127.0.0.1:8000/query \
   -H "Content-Type: application/json" \
   -d '{
     "collection_name": "my_documents",
-    "query": "Explain this concept in detail",
-    "model_profile": "quality"  # Use qwen2.5:3b for this query
+    "query": "Find relevant passages",
+    "use_llm": false,
+    "include_metadata": false
   }'
 ```
 
-**3. Use custom model:**
+List model profiles:
+
 ```bash
-CUSTOM_MODEL_NAME=llama3.2:3b  # Override all profiles
+curl http://127.0.0.1:8000/models/profiles
 ```
 
-#### Model Management Endpoints
+## Supported Documents
 
-**Get available models:**
-```bash
-curl http://localhost:8000/models/available
-```
+The parser reliably targets:
 
-**Get model profiles:**
-```bash
-curl http://localhost:8000/models/profiles
-```
+- PDF via PyMuPDF with PyPDF2 fallback
+- TXT with encoding detection
+- DOCX via `python-docx`
+- XLSX via `openpyxl`
+- Markdown chunking for `.md` paths when routed through the parser
 
-### Brain Module Weights
-
-Configure how the Amygdala ranks document importance:
-
-- `RECENCY_WEIGHT` (0.3): Weight for document recency
-- `RELEVANCE_WEIGHT` (0.5): Weight for search relevance
-- `IMPORTANCE_WEIGHT` (0.2): Weight for base importance score
-
-## Brain Modules Explained
-
-### Hippocampus
-**Function**: Long-term memory storage and retrieval
-
-- Indexes documents into Qdrant with hybrid embeddings
-- Performs vector search (dense + sparse)
-- Manages memory spaces (collections)
-
-### Amygdala
-**Function**: Emotional importance and salience
-
-- Scores retrieved documents by importance
-- Applies recency bias (recent = more salient)
-- Ranks results for optimal context
-
-### Prefrontal Cortex
-**Function**: Executive control and reasoning
-
-- Orchestrates the full RAG pipeline
-- Integrates information from all modules
-- Generates final response using LLM
-
-### Working Memory
-**Function**: Temporary context buffer
-
-- Maintains conversation history
-- Provides context window for queries
-- Manages short-term state
-
-## Performance Optimizations
-
-1. **Async Operations**: All I/O operations are async
-2. **Batch Processing**: Documents processed in configurable batches
-3. **Thread Pools**: CPU-intensive parsing uses thread pools
-4. **Hybrid Search**: Optimal retrieval with dense + sparse vectors
-5. **Connection Pooling**: Reuses Qdrant gRPC connections
-6. **Lazy Loading**: Models loaded on first use
-
-## Supported Document Formats
-
-- **PDF**: Using PyMuPDF (primary) and PyPDF2 (fallback)
-- **TXT**: Auto-encoding detection with chardet
-- **DOC/DOCX**: Full text and table extraction
-- **XLS/XLSX**: All sheets and cells
+Legacy `.doc` and `.xls` are still accepted by the schema but are not guaranteed because the current parser routes them through DOCX/XLSX libraries. Convert legacy Office files before indexing for best results.
 
 ## Development
 
-### Project Structure
-
-```
-Brain_rag/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI application
-│   ├── config.py               # Configuration
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py          # Pydantic models
-│   ├── brain/                  # Brain modules
-│   │   ├── __init__.py
-│   │   ├── hippocampus.py     # Memory & retrieval
-│   │   ├── amygdala.py        # Importance scoring
-│   │   ├── prefrontal_cortex.py  # Executive control
-│   │   └── working_memory.py  # Context buffer
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── document_parser.py # Multi-format parsing
-│   │   ├── embeddings.py      # Dense + sparse embeddings
-│   │   ├── qdrant_service.py  # Qdrant client
-│   │   └── llm_service.py     # Ollama client
-│   └── utils/
-│       ├── __init__.py
-│       └── async_helpers.py   # Async utilities
-├── logs/                       # Application logs
-├── requirements.txt
-├── .env.example
-└── README.md
-```
-
-### Running Tests
+Run focused tests:
 
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
+.venv/bin/python -m pytest tests
+```
 
-# Run with pytest (install pytest first if needed)
-pip install pytest pytest-asyncio
-pytest tests/
+Compile app modules:
+
+```bash
+.venv/bin/python -m compileall app
+```
+
+Run the benchmark harness when Qdrant and the local MLX environment are available:
+
+```bash
+.venv/bin/python scripts/run_benchmark.py --model-profile fast --fusion-method rrf
 ```
 
 ## Troubleshooting
 
-### Qdrant Connection Issues
-- Verify Qdrant is running: `curl http://localhost:6333`
-- Check Docker container: `docker ps | grep qdrant`
-
-### Ollama Issues
-- Verify Ollama is running: `ollama list`
-- Check model is available: `ollama run llama3.2:3b`
-
-### Memory Issues
-- Reduce `BATCH_SIZE` in .env
-- Reduce `CHUNK_SIZE` for smaller documents
-- Limit `MAX_WORKERS` for thread pool
-
-### Slow Performance
-- Increase `BATCH_SIZE` if you have enough RAM
-- Use SSD storage for Qdrant
-- Enable gRPC for Qdrant connections (already enabled)
+- Qdrant unavailable: run `docker compose up -d qdrant` and check `curl http://127.0.0.1:6333/health`.
+- Slow first answer: the model may be downloading or compiling Metal kernels.
+- Memory pressure on 8 GB machines: keep `MODEL_PROFILE=fast`, lower `BATCH_SIZE`, and avoid concurrent model-profile switches.
+- Empty retrieval: confirm the collection exists, files were indexed, and Qdrant storage has not been deleted.
 
 ## License
 
 MIT License
-
-## Credits
-
-Inspired by cognitive neuroscience research on:
-- Hippocampal memory consolidation
-- Amygdala emotional processing
-- Prefrontal cortex executive function
-- Working memory systems
-
-Built with ❤️ using FastAPI, Qdrant, and Ollama.

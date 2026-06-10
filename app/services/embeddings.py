@@ -17,6 +17,11 @@ from app.utils.async_helpers import AsyncBatchProcessor, chunks
 class EmbeddingService:
     """Service for generating dense and sparse embeddings."""
 
+    SPARSE_MODEL_NAMES = {
+        "bm25": "Qdrant/bm25",
+        "bm25plus": "Qdrant/bm25-plus",
+    }
+
     def __init__(self):
         self.settings = get_settings()
         self.dense_model = None
@@ -36,11 +41,13 @@ class EmbeddingService:
                 logger.info("Dense embedding model loaded successfully")
 
             if self.sparse_model is None:
-                logger.info(f"Loading sparse embedding model: {self.settings.SPARSE_MODEL_NAME}")
+                sparse_strategy = getattr(self.settings, 'SPARSE_STRATEGY', 'bm25')
+                model_name = self.SPARSE_MODEL_NAMES.get(sparse_strategy, self.SPARSE_MODEL_NAMES["bm25"])
+                logger.info(f"Loading sparse embedding model: {model_name} (strategy: {sparse_strategy})")
                 loop = asyncio.get_event_loop()
                 self.sparse_model = await loop.run_in_executor(
                     None,
-                    lambda: SparseTextEmbedding(model_name=self.settings.SPARSE_MODEL_NAME)
+                    lambda: SparseTextEmbedding(model_name=model_name)
                 )
                 logger.info("Sparse embedding model loaded successfully")
 

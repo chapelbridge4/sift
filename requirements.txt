@@ -6,8 +6,9 @@ pydantic==2.9.2
 pydantic-settings==2.6.0
 
 # Qdrant vector database
-qdrant-client==1.12.1
-fastembed==0.4.2
+qdrant-client>=1.18.0
+fastembed==0.8.0
+psutil>=5.9.0
 
 # Document parsing
 PyPDF2==3.0.1
@@ -18,18 +19,20 @@ python-magic==0.4.27
 chardet==5.2.0
 
 # Text processing and embeddings
-sentence-transformers==3.3.1
+sentence-transformers==5.4.1
 tokenizers==0.20.3
 
-# Ollama client
-ollama==0.4.3
-httpx==0.27.2
+# MLX (Apple Silicon) LLM runtime — native Apple Silicon inference
+mlx-lm>=0.31.0
+mlx-vlm==0.5.0
 
 # Async utilities
 aiofiles==24.1.0
-asyncio==3.4.3
 
 # Utilities
 python-dotenv==1.0.1
 loguru==0.7.3
 tqdm==4.67.1
+
+# Testing
+pytest==9.0.3

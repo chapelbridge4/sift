@@ -389,12 +389,139 @@ class QdrantService:
                 }
                 results.append(result)
 
+            # Log warning if top result score is below threshold
+            if results and results[0]["score"] < self.settings.RETRIEVAL_SCORE_THRESHOLD:
+                logger.warning(
+                    "Low retrieval confidence: "
+                    f"top score {results[0]['score']:.3f} < threshold {self.settings.RETRIEVAL_SCORE_THRESHOLD}; "
+                    f"query_length={len(query_text)}"
+                )
+
             logger.info(f"Dense search returned {len(results)} results")
             return results
 
         except Exception as e:
             logger.error(f"Error during dense search: {str(e)}")
             raise
+
+    async def sparse_search(
+        self,
+        collection_name: str,
+        query_text: str,
+        top_k: int = 10,
+        filters: Optional[Filter] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform sparse-only (BM25) search.
+
+        Args:
+            collection_name: Name of the collection
+            query_text: Query text
+            top_k: Number of results to return
+            filters: Optional filters
+
+        Returns:
+            List of search results
+        """
+        await self.initialize()
+
+        logger.info(f"Performing sparse search on '{collection_name}'")
+
+        try:
+            # Generate sparse query embedding
+            _, sparse_query = await self.embedding_service.generate_query_embeddings(
+                query_text,
+                include_sparse=True
+            )
+
+            # Convert to SparseVector
+            sparse_vector = models.SparseVector(
+                indices=list(sparse_query.keys()),
+                values=list(sparse_query.values())
+            )
+
+            # Perform search using query_vector
+            search_result = await self.client.search(
+                collection_name=collection_name,
+                query_vector=("sparse", sparse_vector),
+                limit=top_k,
+                query_filter=filters,
+                with_payload=True,
+            )
+
+            # Format results
+            results = []
+            for point in search_result:
+                result = {
+                    "id": point.id,
+                    "score": point.score,
+                    "text": point.payload.get("text", ""),
+                    "metadata": {
+                        k: v for k, v in point.payload.items()
+                        if k != "text"
+                    }
+                }
+                results.append(result)
+
+            logger.info(f"Sparse search returned {len(results)} results")
+            return results
+
+        except Exception as e:
+            logger.error(f"Error during sparse search: {str(e)}")
+            raise
+
+    async def retrieve(
+        self,
+        collection_name: str,
+        query_text: str,
+        top_k: int = 10,
+        filters: Optional[Filter] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Unified retrieval method that dispatches based on RETRIEVAL_STRATEGY config.
+
+        Args:
+            collection_name: Name of the collection
+            query_text: Query text
+            top_k: Number of results to return
+            filters: Optional filters
+
+        Returns:
+            List of search results
+        """
+        strategy = self.settings.RETRIEVAL_STRATEGY.lower()
+
+        if strategy == "dense":
+            return await self.dense_search(
+                collection_name=collection_name,
+                query_text=query_text,
+                top_k=top_k,
+                filters=filters,
+            )
+        elif strategy == "sparse":
+            return await self.sparse_search(
+                collection_name=collection_name,
+                query_text=query_text,
+                top_k=top_k,
+                filters=filters,
+            )
+        elif strategy == "hybrid":
+            fusion_method = self.settings.FUSION_METHOD.lower()
+            return await self.hybrid_search(
+                collection_name=collection_name,
+                query_text=query_text,
+                top_k=top_k,
+                fusion_method=fusion_method,
+                filters=filters,
+            )
+        else:
+            logger.warning(f"Unknown retrieval strategy '{strategy}', defaulting to dense")
+            return await self.dense_search(
+                collection_name=collection_name,
+                query_text=query_text,
+                top_k=top_k,
+                filters=filters,
+            )
 
     async def close(self):
         """Close Qdrant client connection."""

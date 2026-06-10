@@ -11,10 +11,18 @@ Inspired by the amygdala brain region responsible for:
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 import math
+import psutil
 from loguru import logger
 
 from app.config import get_settings
 from app.models.schemas import EmotionalContext
+
+try:
+    from sentence_transformers import CrossEncoder
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    CrossEncoder = None
 
 
 class Amygdala:
@@ -33,6 +41,7 @@ class Amygdala:
         self.recency_weight = self.settings.RECENCY_WEIGHT
         self.relevance_weight = self.settings.RELEVANCE_WEIGHT
         self.importance_weight = self.settings.IMPORTANCE_WEIGHT
+        self._cross_encoder = None
         logger.info("Amygdala module initialized")
 
     def calculate_importance_score(
@@ -92,6 +101,98 @@ class Amygdala:
         # Assuming scores are typically in [0, 1] range for cosine similarity
         return min(max(raw_score, 0.0), 1.0)
 
+    def _load_cross_encoder(self):
+        """Lazily load cross-encoder with memory guardrail."""
+        if self._cross_encoder is not None:
+            return self._cross_encoder
+
+        if not TRANSFORMERS_AVAILABLE:
+            logger.warning("Amygdala: transformers not available, skipping reranker")
+            return None
+
+        # Memory guard: check available RAM before loading
+        total_memory_gb = psutil.virtual_memory().total / (1024 ** 3)
+        if total_memory_gb > 7:
+            logger.warning(
+                f"Amygdala: System memory ({total_memory_gb:.1f}GB) > 7GB, "
+                "skipping cross-encoder to preserve RAM"
+            )
+            return None
+
+        try:
+            model_name = self.settings.RERANK_MODEL
+            logger.info(f"Amygdala: Loading cross-encoder {model_name}")
+            self._cross_encoder = CrossEncoder(model_name)
+            logger.info("Amygdala: Cross-encoder loaded successfully")
+            return self._cross_encoder
+        except Exception as e:
+            logger.warning(f"Amygdala: Failed to load cross-encoder: {e}")
+            return None
+
+    def _jaccard_similarity(self, text_a: str, text_b: str) -> float:
+        """Calculate Jaccard similarity between two texts."""
+        set_a = set(text_a.lower().split())
+        set_b = set(text_b.lower().split())
+        intersection = set_a.intersection(set_b)
+        union = set_a.union(set_b)
+        if not union:
+            return 0.0
+        return len(intersection) / len(union)
+
+    def _dedupe_by_jaccard(
+        self,
+        documents: List[Dict[str, Any]],
+        threshold: float = 0.9
+    ) -> List[Dict[str, Any]]:
+        """Remove documents with high Jaccard similarity to higher-scored docs."""
+        if len(documents) <= 1:
+            return documents
+
+        deduped = []
+        for doc in documents:
+            text = doc.get('text', '')
+            is_duplicate = False
+            for kept_doc in deduped:
+                if self._jaccard_similarity(kept_doc.get('text', ''), text) > threshold:
+                    is_duplicate = True
+                    logger.debug(
+                        f"Amygdala: Deduping chunk (Jaccard={self._jaccard_similarity(kept_doc.get('text', ''), text):.2f})"
+                    )
+                    break
+            if not is_duplicate:
+                deduped.append(doc)
+
+        return deduped
+
+    def _diversify_sources(
+        self,
+        documents: List[Dict[str, Any]],
+        target_unique: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Ensure at least target_unique document_ids in top_k results."""
+        if len(documents) <= target_unique:
+            return documents
+
+        diversified = []
+        seen_ids = set()
+        remainder = []
+
+        for doc in documents:
+            doc_id = doc.get('metadata', {}).get('document_id', 'unknown')
+            if len(seen_ids) < target_unique and doc_id not in seen_ids:
+                diversified.append(doc)
+                seen_ids.add(doc_id)
+            else:
+                remainder.append(doc)
+
+        # Fill remaining slots with highest-scored docs
+        for doc in remainder:
+            if len(diversified) >= self.settings.RERANK_TOP_K:
+                break
+            diversified.append(doc)
+
+        return diversified
+
     def _calculate_recency_score(
         self,
         document: Dict[str, Any],
@@ -131,6 +232,69 @@ class Amygdala:
         except (ValueError, TypeError) as e:
             logger.warning(f"Amygdala: Error parsing timestamp: {str(e)}")
             return 0.5
+
+    def rerank(
+        self,
+        documents: List[Dict[str, Any]],
+        query: str,
+        initial_top_k: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Rerank documents using a cross-encoder model.
+
+        Args:
+            documents: Initial retrieved documents
+            query: Original query
+            initial_top_k: Number of documents to rerank (default 20)
+
+        Returns:
+            Reranked documents (top_k after reranking)
+        """
+        if not self.settings.RERANK_ENABLED:
+            logger.debug("Amygdala: Reranking disabled, returning initial results")
+            return documents[:self.settings.RERANK_TOP_K]
+
+        if len(documents) == 0:
+            return documents
+
+        cross_encoder = self._load_cross_encoder()
+        if cross_encoder is None:
+            logger.info("Amygdala: Reranker unavailable, returning initial results")
+            return documents[:self.settings.RERANK_TOP_K]
+
+        # Take top initial_top_k for reranking
+        candidates = documents[:initial_top_k]
+
+        # Build query-chunk pairs for cross-encoder
+        pairs = [(query, doc.get('text', '')) for doc in candidates]
+
+        try:
+            scores = cross_encoder.predict(pairs)
+        except Exception as e:
+            logger.warning(f"Amygdala: Cross-encoder prediction failed: {e}")
+            return documents[:self.settings.RERANK_TOP_K]
+
+        # Attach cross-encoder scores and re-sort
+        reranked = []
+        for i, doc in enumerate(candidates):
+            doc_copy = doc.copy()
+            doc_copy['rerank_score'] = float(scores[i])
+            reranked.append(doc_copy)
+
+        reranked.sort(key=lambda x: x['rerank_score'], reverse=True)
+
+        # Take top RERANK_TOP_K
+        result = reranked[:self.settings.RERANK_TOP_K]
+
+        # Jaccard deduplication
+        result = self._dedupe_by_jaccard(result, threshold=0.9)
+
+        # Source diversification if enabled
+        if self.settings.DIVERSIFY_SOURCES:
+            result = self._diversify_sources(result, target_unique=3)
+
+        logger.info(f"Amygdala: Reranked {len(candidates)} to {len(result)} documents")
+        return result
 
     def rank_by_importance(
         self,

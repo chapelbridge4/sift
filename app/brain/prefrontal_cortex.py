@@ -37,7 +37,6 @@ class PrefrontalCortex:
 
     async def initialize(self):
         """Initialize the prefrontal cortex and its subsystems."""
-        await self.llm_service.initialize()
         await self.hippocampus.initialize()
         logger.info("Prefrontal Cortex executive systems online")
 
@@ -49,7 +48,9 @@ class PrefrontalCortex:
         use_hybrid: bool = True,
         conversation_id: Optional[str] = None,
         temperature: Optional[float] = None,
-        model_profile: Optional[str] = None
+        model_profile: Optional[str] = None,
+        fusion_method: str = "rrf",
+        use_llm: bool = True
     ) -> Dict[str, Any]:
         """
         Perform complex reasoning using retrieved context (executive function).
@@ -72,7 +73,7 @@ class PrefrontalCortex:
         Returns:
             Dictionary with answer and metadata including model_used
         """
-        logger.info(f"PFC: Beginning reasoning process for query: {query[:50]}...")
+        logger.info(f"PFC: Beginning reasoning process for query_length={len(query)}")
 
         try:
             # Step 1: Retrieve relevant memories (Hippocampus recall)
@@ -81,33 +82,48 @@ class PrefrontalCortex:
                 collection_name=collection_name,
                 query=query,
                 top_k=top_k,
-                use_hybrid=use_hybrid
+                use_hybrid=use_hybrid,
+                fusion_method=fusion_method
             )
-
-            if not retrieved_memories:
-                logger.warning("PFC: No memories retrieved, generating response without context")
-                return await self._generate_response_without_context(
-                    query, conversation_id, temperature
-                )
 
             # Step 2: Evaluate importance and rank (Amygdala processing)
-            logger.debug("PFC: Step 2 - Evaluating importance with Amygdala")
-            ranked_memories = self.amygdala.rank_by_importance(
-                retrieved_memories,
-                query
-            )
+            if retrieved_memories:
+                logger.debug("PFC: Step 2 - Evaluating importance with Amygdala")
+                ranked_memories = self.amygdala.rank_by_importance(
+                    retrieved_memories,
+                    query
+                )
+            else:
+                ranked_memories = []
 
-            # Step 3: Get conversation context (Working Memory)
-            logger.debug("PFC: Step 3 - Retrieving conversation context from Working Memory")
+            # Step 3: Check if LLM generation is needed
+            if not use_llm:
+                logger.info("PFC: use_llm=False, returning retrieved documents without generation")
+                return {
+                    "answer": None,
+                    "retrieved_documents": ranked_memories,
+                    "num_documents_used": len(ranked_memories),
+                    "conversation_id": conversation_id,
+                    "model_used": None
+                }
+
+            # Step 4: Get conversation context (Working Memory)
+            if not ranked_memories:
+                logger.warning("PFC: No memories retrieved, generating response without context")
+                return await self._generate_response_without_context(
+                    query, conversation_id, temperature, model_profile
+                )
+
+            logger.debug("PFC: Step 4 - Retrieving conversation context from Working Memory")
             conversation_history = None
             if conversation_id:
                 conversation_history = await self.working_memory.get_conversation_history(
                     conversation_id
                 )
 
-            # Step 4: Integrate information and reason (Executive function)
-            logger.debug("PFC: Step 4 - Integrating information and reasoning")
-            answer = await self._integrate_and_reason(
+            # Step 5: Integrate information and reason (Executive function)
+            logger.debug("PFC: Step 5 - Integrating information and reasoning")
+            answer, model_used = await self._integrate_and_reason(
                 query=query,
                 ranked_memories=ranked_memories,
                 conversation_history=conversation_history,
@@ -125,9 +141,6 @@ class PrefrontalCortex:
                     conversation_id,
                     {"role": "assistant", "content": answer}
                 )
-
-            # Get model name that was used
-            model_used = self.llm_service.get_current_model()
 
             logger.info(f"PFC: Reasoning complete with model '{model_used}'")
 
@@ -150,7 +163,7 @@ class PrefrontalCortex:
         conversation_history: Optional[List[Dict[str, str]]],
         temperature: Optional[float],
         model_profile: Optional[str] = None
-    ) -> str:
+    ) -> tuple[str, str]:
         """
         Integrate retrieved information and generate reasoned response.
 
@@ -162,13 +175,16 @@ class PrefrontalCortex:
             model_profile: Model profile to use
 
         Returns:
-            Generated answer
+            Tuple of (generated answer, model_name used)
         """
         # Extract text contexts from top-ranked memories
         contexts = [
             memory['text']
             for memory in ranked_memories[:5]  # Use top 5 for faster response
         ]
+
+        # Get model for this request without modifying persistent state
+        model_name, model_config = self.llm_service.get_model_for_request(model_profile)
 
         # Generate response using LLM with specified model profile
         answer = await self.llm_service.generate_rag_response(
@@ -179,13 +195,14 @@ class PrefrontalCortex:
             model_profile=model_profile
         )
 
-        return answer
+        return answer, model_name
 
     async def _generate_response_without_context(
         self,
         query: str,
         conversation_id: Optional[str],
-        temperature: float
+        temperature: float,
+        model_profile: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate response when no relevant context is found.
@@ -194,6 +211,7 @@ class PrefrontalCortex:
             query: User query
             conversation_id: Conversation ID
             temperature: LLM temperature
+            model_profile: Model profile to use
 
         Returns:
             Response dictionary
@@ -206,18 +224,28 @@ class PrefrontalCortex:
                 conversation_id
             )
 
+        # Get model for this request without modifying persistent state
+        model_name, model_config = self.llm_service.get_model_for_request(model_profile)
+
+        final_temperature = temperature if temperature is not None else model_config.get('temperature', 0.7)
+        max_tokens = model_config.get('max_tokens', 300)
+
         # Generate response using LLM without context
         if conversation_history:
             answer = await self.llm_service.chat(
                 messages=conversation_history + [
                     {"role": "user", "content": query}
                 ],
-                temperature=temperature
+                temperature=final_temperature,
+                max_tokens=max_tokens,
+                model_name=model_name
             )
         else:
             answer = await self.llm_service.generate(
                 prompt=query,
-                temperature=temperature
+                temperature=final_temperature,
+                max_tokens=max_tokens,
+                model_name=model_name
             )
 
         return {
@@ -225,6 +253,7 @@ class PrefrontalCortex:
             "retrieved_documents": [],
             "num_documents_used": 0,
             "conversation_id": conversation_id,
+            "model_used": model_name,
             "note": "No relevant context found in memory"
         }
 
@@ -289,7 +318,7 @@ Provide your decision with clear reasoning."""
         Returns:
             Task plan with steps
         """
-        logger.info(f"PFC: Planning task: {task_description[:50]}...")
+        logger.info(f"PFC: Planning task with description_length={len(task_description)}")
 
         constraints_str = ""
         if constraints:

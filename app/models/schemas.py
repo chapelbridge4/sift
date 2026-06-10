@@ -25,11 +25,10 @@ class FusionMethod(str, Enum):
 
 
 class ModelProfile(str, Enum):
-    """LLM model profiles optimized for different use cases."""
-    FAST = "fast"  # qwen2.5:0.5b - Ultra-fast responses (~40-50 tokens/s)
-    BALANCED = "balanced"  # qwen2.5:1.5b - Best speed/quality balance (~30-40 tokens/s)
-    QUALITY = "quality"  # qwen2.5:3b - Higher quality responses (~20-30 tokens/s)
-    REASONING = "reasoning"  # qwen3:3b - Step-by-step reasoning mode (~15-25 tokens/s)
+    """LLM model profiles optimized for Apple Silicon via MLX."""
+    FAST = "fast"  # 4B MLX profile, 400 token cap, thinking off
+    BALANCED = "balanced"  # 4B MLX profile, 600 token cap, thinking off
+    QUALITY = "quality"  # 4B MLX profile, 800 token cap, thinking on
 
 
 # Collection Management Schemas
@@ -105,7 +104,7 @@ class QueryRequest(BaseModel):
     use_llm: Optional[bool] = Field(default=True)
     conversation_id: Optional[str] = None
     include_metadata: Optional[bool] = Field(default=True)
-    model_profile: Optional[ModelProfile] = Field(default=None, description="LLM model profile to use (fast/balanced/quality/reasoning)")
+    model_profile: Optional[ModelProfile] = Field(default=None, description="LLM model profile to use (fast/balanced/quality)")
 
 
 class RetrievedDocument(BaseModel):
@@ -151,5 +150,5 @@ class HealthResponse(BaseModel):
     app_name: str
     version: str
     qdrant_connected: bool
-    ollama_connected: bool
+    mlx_connected: bool
     timestamp: datetime = Field(default_factory=datetime.utcnow)

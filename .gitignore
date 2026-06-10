@@ -1,9 +1,51 @@
-/.venv
-/logs
-/qdrant_storage/collections
-/qdrant_storage
-/app/__pycache__
-/app/brain/__pycache__
-/app/models/__pycache__
-/app/services/__pycache__
-/app/utils/__pycache__
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data
+logs/
+qdrant_storage/
+config/*.db
+config/*.sqlite
+config/*.sqlite3
+.cache/
+app/tuning/results/
+
+# Local document corpora and generated design artifacts
+papers/
+mockups/
+
+# Local agent/editor state
+AGENTS.md
+.agents/
+.claude/
+CLAUDE.md
+SESSION_STATE.md
+skills-lock.json
+docs/context/
+docs/plans/
+docs/protocol/
+docs/reviews/
+docs/tasks/
+docs/superpowers/plans/2026-04-21-brain-rag-dependency-and-test-fixes.md
+docs/superpowers/plans/2026-05-20-m1-8gb-9b-plus-llm-feasibility.md
+
+# One-off local experiments
+test_8bit_model.py
+scripts/test_mlx_latency.py

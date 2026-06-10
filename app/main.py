@@ -11,7 +11,7 @@ import time
 from typing import List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 import sys
@@ -75,14 +75,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Brain-inspired RAG system with Qdrant and Ollama",
+    description="Brain-inspired RAG system with Qdrant and MLX for Apple Silicon",
     lifespan=lifespan
 )
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_allow_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -107,19 +107,19 @@ async def health_check():
     Verifies:
     - API is running
     - Qdrant connection
-    - Ollama connection
+    - MLX model loading
     """
     logger.info("Health check requested")
 
     qdrant_ok = await brain.hippocampus.qdrant_service.health_check()
-    ollama_ok = await brain.llm_service.health_check()
+    mlx_ok = await brain.llm_service.health_check()
 
     return HealthResponse(
-        status="healthy" if (qdrant_ok and ollama_ok) else "degraded",
+        status="healthy" if (qdrant_ok and mlx_ok) else "degraded",
         app_name=settings.APP_NAME,
         version=settings.APP_VERSION,
         qdrant_connected=qdrant_ok,
-        ollama_connected=ollama_ok
+        mlx_connected=mlx_ok
     )
 
 
@@ -314,7 +314,10 @@ async def query(request: QueryRequest):
     Returns:
         Query response with answer and retrieved documents
     """
-    logger.info(f"Query request: {request.query[:100]}...")
+    logger.info(
+        "Query request received "
+        f"(collection='{request.collection_name}', query_length={len(request.query)}, top_k={request.top_k})"
+    )
 
     start_time = time.time()
 
@@ -328,15 +331,31 @@ async def query(request: QueryRequest):
                 detail=f"Collection '{request.collection_name}' does not exist"
             )
 
+        # Validate model_profile if provided
+        effective_model_profile = None
+        if request.model_profile:
+            available_profiles = list(settings.MODEL_PROFILES.keys())
+            if request.model_profile.value not in available_profiles:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unknown model_profile '{request.model_profile.value}'. Available: {available_profiles}"
+                )
+            effective_model_profile = request.model_profile.value
+
+        # Determine effective fusion method
+        effective_fusion = request.fusion_method.value if request.fusion_method else "rrf"
+
         # Execute reasoning with full brain pipeline
         result = await brain.reason_with_context(
             query=request.query,
             collection_name=request.collection_name,
             top_k=request.top_k or 10,
-            use_hybrid=True,  # Always use hybrid search for best results
+            use_hybrid=True,
+            fusion_method=effective_fusion,
             conversation_id=request.conversation_id,
-            temperature=None,  # Use model profile default
-            model_profile=request.model_profile.value if request.model_profile else None
+            temperature=None,
+            model_profile=effective_model_profile,
+            use_llm=request.use_llm if request.use_llm is not None else True
         )
 
         processing_time = time.time() - start_time
@@ -363,10 +382,10 @@ async def query(request: QueryRequest):
             query=request.query,
             answer=result.get("answer") if request.use_llm else None,
             retrieved_documents=retrieved_docs,
-            retrieval_method=f"hybrid_{request.fusion_method.value}",
+            retrieval_method=f"hybrid_{effective_fusion}",
             processing_time_seconds=processing_time,
             conversation_id=result.get("conversation_id"),
-            model_used=result.get("model_used")
+            model_used=result.get("model_used") if request.use_llm else None
         )
 
     except HTTPException:
@@ -445,28 +464,35 @@ async def get_model_profiles():
 @app.get("/models/available", tags=["Models"])
 async def get_available_models():
     """
-    Get list of models currently available in Ollama.
+    Get list of configured model profiles.
+
+    Note: MLX models are loaded from Hugging Face cache and are not
+    enumerated via an API. This endpoint returns the configured profiles.
 
     Returns:
-        List of installed models with their details
+        List of configured model profiles with their settings
     """
     try:
-        models_response = await brain.llm_service.client.list()
-        models = models_response.get('models', [])
+        profiles = brain.llm_service.model_manager.list_available_profiles()
+        current_model = brain.llm_service.get_current_model()
+        current_profile = brain.llm_service.current_profile or settings.MODEL_PROFILE
 
         model_list = []
-        for model in models:
+        for profile_name, config in profiles.items():
             model_list.append({
-                "name": model.get('name', ''),
-                "size": model.get('size', 0),
-                "modified_at": model.get('modified_at', ''),
-                "details": model.get('details', {})
+                "profile": profile_name,
+                "model": config.get("model", ""),
+                "max_tokens": config.get("max_tokens", 0),
+                "temperature": config.get("temperature", 0.0),
+                "description": config.get("description", ""),
             })
 
         return {
             "models": model_list,
             "total": len(model_list),
-            "current_model": brain.llm_service.get_current_model()
+            "current_model": current_model,
+            "current_profile": current_profile,
+            "note": "MLX models are cached from Hugging Face and loaded on demand"
         }
 
     except Exception as e:
