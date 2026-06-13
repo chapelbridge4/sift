@@ -121,20 +121,19 @@ async def run_generation_eval(
             results.append({"query_id": qid, "faithfulness": 0.0, "answer": "", "latency_ms": 0})
             continue
 
-        # Build context from top chunks
+        # Build context from top chunks (passed directly to generate_rag_response)
         context_texts = [c.get("text", "")[:500] for c in chunks[:top_k]]
-        context = "\n\n".join(context_texts)
-
-        prompt = f"Context:\n{context}\n\nQuestion: {query_text}\n\nAnswer based on the context above."
 
         start = time.time()
         try:
-            response = await llm.generate(
-                prompt=prompt,
-                model_name="fast",
+            # generate_rag_response accepts model_profile (profile name like "fast"),
+            # unlike generate() which takes model_name (a model ID string).
+            answer = await llm.generate_rag_response(
+                query=query_text,
+                retrieved_contexts=context_texts,
+                model_profile="fast",
                 max_tokens=200,
             )
-            answer = response.get("text", "") if isinstance(response, dict) else str(response)
         except Exception as e:
             answer = f"[ERROR: {e}]"
         elapsed_ms = (time.time() - start) * 1000

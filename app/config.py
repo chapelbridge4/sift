@@ -33,6 +33,27 @@ class Settings(BaseSettings):
     DEFAULT_COLLECTION_NAME: str = "brain_rag_collection"
     DENSE_VECTOR_SIZE: int = 384
 
+    # Inference backend — 'gguf' uses llama-cpp-python (Metal), 'mlx' uses MLX-VLM
+    # 'gguf' is the cross-platform default; 'mlx' requires Apple Silicon + MLX stack.
+    INFERENCE_BACKEND: str = Field(
+        default="gguf",
+        description="Inference backend: 'gguf' (llama-cpp-python) or 'mlx' (MLX-VLM)"
+    )
+
+    # GGUF backend configuration
+    GGUF_MODEL_PATH: Optional[str] = Field(
+        default=None,
+        description="Explicit local path to GGUF model file (overrides default ~/.cache/gguf)"
+    )
+    GGUF_N_GPU_LAYERS: int = Field(
+        default=-1,
+        description="Number of layers to offload to Metal (-1 = all)"
+    )
+    GGUF_N_CTX: int = Field(
+        default=4096,
+        description="Context window size for GGUF model"
+    )
+
     # MLX Configuration (Apple Silicon native LLM)
     MLX_MODEL_CACHE_DIR: str = Field(
         default="~/.cache/mlx-lm",
