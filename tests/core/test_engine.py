@@ -1,8 +1,14 @@
+import importlib.util
 import pytest
 from unittest.mock import MagicMock, patch
 
+# mlx_vlm is an Apple-Silicon-only optional dependency; skip MLX-specific tests
+# when it isn't installed (e.g. Linux CI running the default GGUF backend).
+_HAS_MLX_VLM = importlib.util.find_spec("mlx_vlm") is not None
+
 
 class TestQwenEngine:
+    @pytest.mark.skipif(not _HAS_MLX_VLM, reason="requires mlx_vlm (Apple Silicon optional dep)")
     @patch("mlx_vlm.load")
     def test_engine_loads_model_and_processor(self, mock_load):
         mock_load.return_value = (MagicMock(), MagicMock())
