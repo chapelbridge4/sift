@@ -1,16 +1,23 @@
-# Brain-Inspired RAG
+# sift — local-first RAG with honest evaluation
 
-Brain-Inspired RAG is a local-first Retrieval-Augmented Generation service built with FastAPI, Qdrant, FastEmbed, and Apple Silicon MLX inference. It indexes local documents into Qdrant and answers questions through a small set of brain-inspired orchestration modules.
+[![ci](https://github.com/chapelbridge4/sift/actions/workflows/ci.yml/badge.svg)](https://github.com/chapelbridge4/sift/actions/workflows/ci.yml)
 
-This repository is a research/prototype service, not a production-hosted API. It has no built-in authentication, and the ingestion endpoint accepts server-local file paths. Keep it bound to trusted local networks unless you add auth, authorization, and deployment hardening.
+Most RAG tooling assumes a cloud LLM and a single tenant. **sift** runs the full loop — retrieval, generation, and evaluation — **offline on an 8 GB laptop**, with no cloud account and no Docker required. Inference uses GGUF/llama.cpp (Windows, Linux, macOS, CPU-capable); Apple-Silicon MLX is an optional fast-path.
 
-## Current Status
+On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, embedded Qdrant) retrieves at **recall@10 = 0.816** — 100 queries, ~20 ms/query, 5,183-doc corpus — measured against ground-truth relevance judgments, not keyword matching. Generation with Qwen3-4B (Q4_K_M) runs at **~19 tok/s, ~2.9 GB RSS** on an Apple M1 (8 GB). Full numbers and the quant × KV-cache matrix: [BENCHMARKS.md](BENCHMARKS.md).
 
-- Local FastAPI API for collection management, document indexing, retrieval, and RAG responses.
-- Qdrant-backed dense, sparse, and hybrid retrieval paths.
-- MLX/MLX-VLM generation profiles tuned for an 8 GB Apple Silicon machine.
-- Focused unit tests for API contracts, parser behavior, startup boundaries, tuning helpers, and benchmark scaffolding.
-- Public-push hygiene is documented in [docs/audits/public-release-readiness-2026-06-10.md](docs/audits/public-release-readiness-2026-06-10.md).
+> Research/prototype service — no built-in authentication; the ingestion endpoint accepts server-local file paths. Keep it on trusted local networks unless you add auth and deployment hardening.
+
+## What it does
+
+- **Local-first RAG pipeline** — dense / sparse / hybrid retrieval over Qdrant, reranking, and working-memory conversation context, behind a FastAPI API.
+- **Runs on low hardware** — GGUF/llama.cpp default backend (cross-platform, CPU-capable); embedded Qdrant means zero infrastructure to clone and run; KV-cache quantization (`q8_0`/`q4_0`, flash-attention) for context headroom.
+- **Measured honestly** — true recall@k on a public benchmark (BEIR/SciFact) plus a reproducible quant × KV-cache × throughput/RAM matrix; benchmarks state where they break, not just where they shine.
+
+## Roadmap
+
+- **Per-query failure triage** — classifying each failed query by a RAG error taxonomy (chunking / retrieval / reranking / generation), per-tenant and per-pipeline-span. This is the headline direction; today the repo ships the pipeline + the honest evaluation it builds on.
+- RAG-aware KV-cache management (per-chunk precision, cross-query reuse of retrieved-passage KV).
 
 ## Privacy And Safety
 
@@ -27,9 +34,11 @@ FastAPI API
   -> Hippocampus: collection management, document parsing, Qdrant indexing/search
   -> Amygdala: importance scoring, optional reranking/diversification
   -> WorkingMemory: in-memory conversation history
-  -> LLMService: local MLX/MLX-VLM generation
-  -> Qdrant: vector and sparse payload storage
+  -> Inference backend: GGUF/llama.cpp (default, cross-platform) or MLX (optional Apple fast-path)
+  -> Qdrant: vector and sparse payload storage (embedded by default; server optional)
 ```
+
+> Design rationale: the module names (PrefrontalCortex/Hippocampus/Amygdala/WorkingMemory) are a memory-systems analogy for the orchestration roles — an internal design choice, not the product claim. The product claim is the engineering: local-first, low-hardware, honestly measured.
 
 Key directories:
 
@@ -43,36 +52,30 @@ Key directories:
 
 ## Requirements
 
-- Python 3.12 recommended.
-- Docker or Docker Desktop for Qdrant.
-- macOS on Apple Silicon for MLX generation.
-- Enough disk space for Hugging Face / MLX model caches.
+- Python 3.11+.
+- No Docker required — Qdrant runs embedded by default. (Docker only if you opt into a Qdrant server.)
+- Any OS for the default GGUF/llama.cpp backend (Windows / Linux / macOS, CPU works). macOS Apple Silicon only for the optional MLX fast-path.
+- Disk space for one GGUF model (~2.5 GB for Qwen3-4B Q4_K_M) and embedding caches.
 
 ## Setup
 
 ```bash
-git clone <repository-url>
-cd Brain_rag
+git clone https://github.com/chapelbridge4/sift.git
+cd sift
 
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt          # cross-platform core (GGUF backend)
+# optional, Apple Silicon only:
+# pip install -r requirements-mlx.txt
 
 cp .env.example .env
 ```
 
-Start Qdrant:
+Qdrant runs **embedded** by default (`QDRANT_MODE=embedded`) — no server needed. Fetch a GGUF model once:
 
 ```bash
-docker compose up -d qdrant
-```
-
-Or without Compose:
-
-```bash
-docker run -p 127.0.0.1:6333:6333 -p 127.0.0.1:6334:6334 \
-  -v qdrant_storage:/qdrant/storage \
-  qdrant/qdrant:v1.18.0
+python3 -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='unsloth/Qwen3-4B-GGUF', filename='Qwen3-4B-Q4_K_M.gguf', local_dir='~/.cache/gguf')"
 ```
 
 Start the API:
@@ -83,6 +86,12 @@ Start the API:
 
 Open the interactive docs at `http://127.0.0.1:8000/docs`.
 
+Optional — run Qdrant as a server instead of embedded (set `QDRANT_MODE=server`):
+
+```bash
+docker run -p 127.0.0.1:6333:6333 -v qdrant_storage:/qdrant/storage qdrant/qdrant:v1.18.0
+```
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust local values. Common settings:
@@ -92,6 +101,11 @@ Copy `.env.example` to `.env` and adjust local values. Common settings:
 | `QDRANT_HOST` | `localhost` | Local Qdrant host |
 | `QDRANT_PORT` | `6333` | HTTP port |
 | `QDRANT_API_KEY` | empty | Set only for protected remote Qdrant |
+| `INFERENCE_BACKEND` | `gguf` | `gguf` (cross-platform) or `mlx` (Apple fast-path) |
+| `QDRANT_MODE` | `embedded` | `embedded` (no server) or `server` (host/port) |
+| `QDRANT_PATH` | `./qdrant_data` | Embedded storage path (or `:memory:`) |
+| `GGUF_MODEL_PATH` | `~/.cache/gguf/Qwen3-4B-Q4_K_M.gguf` | Path to the GGUF model file |
+| `GGUF_CACHE_TYPE_K` / `GGUF_CACHE_TYPE_V` | `q8_0` / `q4_0` | KV-cache quant (requires flash-attention) |
 | `CORS_ALLOW_ORIGINS` | local frontend origins | Comma-separated origins |
 | `MODEL_PROFILE` | `fast` | `fast`, `balanced`, or `quality` |
 | `DENSE_MODEL_NAME` | `sentence-transformers/all-MiniLM-L6-v2` | Dense embedding model |
@@ -100,7 +114,7 @@ Copy `.env.example` to `.env` and adjust local values. Common settings:
 | `CHUNK_OVERLAP` | `128` | Overlap for large chunks |
 | `MAX_FILE_SIZE_MB` | `50` | Per-file parser limit |
 
-Current MLX profiles all use `mlx-community/Qwen3.5-4B-MLX-4bit` and differ by token cap and thinking mode:
+The default backend is **GGUF/llama.cpp** (`INFERENCE_BACKEND=gguf`, model `Qwen3-4B-Q4_K_M.gguf`). The MLX profiles below apply only when `INFERENCE_BACKEND=mlx` (Apple Silicon); they use `mlx-community/Qwen3.5-4B-MLX-4bit` and differ by token cap and thinking mode:
 
 | Profile | Max Tokens | Thinking | Intended Use |
 | --- | ---: | --- | --- |
@@ -202,15 +216,21 @@ Compile app modules:
 .venv/bin/python -m compileall app
 ```
 
-Run the benchmark harness when Qdrant and the local MLX environment are available:
+Run the real retrieval benchmark (BEIR/SciFact, true recall@k — no server, no GPU needed):
 
 ```bash
-.venv/bin/python scripts/run_benchmark.py --model-profile fast --fusion-method rrf
+.venv/bin/python scripts/benchmark_beir.py --top-k 10 --max-queries 100
+```
+
+Reproduce the quant × KV-cache throughput/RAM matrix (needs the GGUF model):
+
+```bash
+.venv/bin/python scripts/benchmark_matrix.py --stamp local
 ```
 
 ## Troubleshooting
 
-- Qdrant unavailable: run `docker compose up -d qdrant` and check `curl http://127.0.0.1:6333/health`.
+- Qdrant: embedded mode (default) needs no server. Only if `QDRANT_MODE=server`, start one (see Setup) and check `curl http://127.0.0.1:6333/health`.
 - Slow first answer: the model may be downloading or compiling Metal kernels.
 - Memory pressure on 8 GB machines: keep `MODEL_PROFILE=fast`, lower `BATCH_SIZE`, and avoid concurrent model-profile switches.
 - Empty retrieval: confirm the collection exists, files were indexed, and Qdrant storage has not been deleted.
