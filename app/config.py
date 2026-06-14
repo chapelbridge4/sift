@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Qdrant Configuration
+    # QDRANT_MODE: "embedded" → local path/in-memory (no server); "server" → host/port (Docker)
+    QDRANT_MODE: str = "embedded"
+    QDRANT_PATH: str = "./qdrant_data"
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
     QDRANT_GRPC_PORT: int = 6334

@@ -21,6 +21,7 @@ venv/
 # Runtime data
 logs/
 qdrant_storage/
+qdrant_data/
 config/*.db
 config/*.sqlite
 config/*.sqlite3

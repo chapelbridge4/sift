@@ -5,6 +5,7 @@ Uses AsyncQdrantClient for concurrent operations.
 
 from typing import List, Dict, Any, Optional, Tuple
 import asyncio
+import os
 from datetime import datetime
 import uuid
 
@@ -36,20 +37,42 @@ class QdrantService:
         self.embedding_service = EmbeddingService()
 
     async def initialize(self):
-        """Initialize Qdrant client connection."""
-        if self.client is None:
-            logger.info(
-                f"Connecting to Qdrant at {self.settings.QDRANT_HOST}:{self.settings.QDRANT_PORT}"
-            )
+        """Initialize Qdrant client connection.
 
-            self.client = AsyncQdrantClient(
-                host=self.settings.QDRANT_HOST,
-                port=self.settings.QDRANT_PORT,
-                api_key=self.settings.QDRANT_API_KEY,
-                timeout=self.settings.QDRANT_TIMEOUT,
-                prefer_grpc=False,  # Disable gRPC to avoid SSL issues with local Qdrant
-                https=False,  # Use HTTP instead of HTTPS for local Qdrant
-            )
+        Mode is selected by QDRANT_MODE (env var checked first, so monkeypatching
+        works even when settings is cached by lru_cache), falling back to
+        self.settings.QDRANT_MODE, then to 'embedded'.
+
+        "embedded" → AsyncQdrantClient(path=...) — no server needed (zero-infra default)
+        "server"   → AsyncQdrantClient(host=..., port=...) — requires a running Qdrant server
+        """
+        if self.client is None:
+            mode = (
+                os.getenv("QDRANT_MODE")
+                or getattr(self.settings, "QDRANT_MODE", "embedded")
+                or "embedded"
+            ).lower()
+
+            if mode == "embedded":
+                qdrant_path = (
+                    os.getenv("QDRANT_PATH")
+                    or getattr(self.settings, "QDRANT_PATH", "./qdrant_data")
+                    or "./qdrant_data"
+                )
+                logger.info(f"Starting Qdrant in embedded mode (path={qdrant_path})")
+                self.client = AsyncQdrantClient(path=qdrant_path)
+            else:
+                logger.info(
+                    f"Connecting to Qdrant server at {self.settings.QDRANT_HOST}:{self.settings.QDRANT_PORT}"
+                )
+                self.client = AsyncQdrantClient(
+                    host=self.settings.QDRANT_HOST,
+                    port=self.settings.QDRANT_PORT,
+                    api_key=self.settings.QDRANT_API_KEY,
+                    timeout=self.settings.QDRANT_TIMEOUT,
+                    prefer_grpc=False,  # Disable gRPC to avoid SSL issues with local Qdrant
+                    https=False,  # Use HTTP instead of HTTPS for local Qdrant
+                )
 
             # Test connection
             try:
