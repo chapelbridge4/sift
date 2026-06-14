@@ -2,7 +2,6 @@
 
 import threading
 from pathlib import Path
-import mlx.core as mx
 from app.config import get_settings
 
 _settings = get_settings()
@@ -35,6 +34,7 @@ class KVManager:
         p = cls._path(session_id)
         with _LOCK:
             try:
+                import mlx.core as mx
                 mx.savez(str(p), cache=cache)
             except Exception as e:
                 print(f"KV save failed: {e}")
@@ -70,6 +70,7 @@ class KVManager:
             return None
         with _LOCK:
             try:
+                import mlx.core as mx
                 data = mx.load(str(p))
                 return data.get("cache") if hasattr(data, "get") else data
             except Exception:

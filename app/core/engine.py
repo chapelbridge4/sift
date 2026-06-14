@@ -9,8 +9,6 @@ import re
 from pathlib import Path
 from typing import Optional
 
-import mlx.core as mx
-
 from app.config import get_settings
 from app.core.kv_manager import KVManager
 
@@ -187,6 +185,7 @@ class QwenEngine:
         if not path.exists():
             return None
         try:
+            import mlx.core as mx
             data = mx.load(str(path))
             return data
         except Exception:
@@ -197,6 +196,7 @@ class QwenEngine:
         key = self._session_hash(session_id)
         path = self.cache_dir / f"{key}.npz"
         try:
+            import mlx.core as mx
             mx.savez(str(path), cache=kv_cache)
         except Exception as e:
             print(f"KV save failed: {e}")
