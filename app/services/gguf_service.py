@@ -37,6 +37,17 @@ _DEFAULT_REPO_ID = "unsloth/Qwen3-4B-GGUF"
 _DEFAULT_FILENAME = "Qwen3-4B-Q4_K_M.gguf"
 
 
+def _ggml_type(name: str):
+    """Map a short type name to the corresponding llama_cpp GGML_TYPE_* constant."""
+    import llama_cpp
+    return {
+        "f16": llama_cpp.GGML_TYPE_F16,
+        "q8_0": llama_cpp.GGML_TYPE_Q8_0,
+        "q4_0": llama_cpp.GGML_TYPE_Q4_0,
+        "q5_0": llama_cpp.GGML_TYPE_Q5_0,
+    }[name]
+
+
 def _resolve_model_path(settings) -> Optional[str]:
     """
     Return local path to GGUF model file, or None if not downloaded yet.
@@ -99,11 +110,16 @@ class GGUFService:
 
         n_gpu_layers = getattr(self.settings, "GGUF_N_GPU_LAYERS", -1)
         n_ctx = getattr(self.settings, "GGUF_N_CTX", 4096)
+        cache_type_k = getattr(self.settings, "GGUF_CACHE_TYPE_K", "q8_0")
+        cache_type_v = getattr(self.settings, "GGUF_CACHE_TYPE_V", "q4_0")
 
         return Llama(
             model_path=model_path,
             n_gpu_layers=n_gpu_layers,  # -1 = offload all layers to Metal
             n_ctx=n_ctx,
+            flash_attn=True,            # required for KV-cache quantization
+            type_k=_ggml_type(cache_type_k),  # K at q8_0 (keys more sensitive)
+            type_v=_ggml_type(cache_type_v),  # V at q4_0 (values more compressible)
             verbose=False,
         )
 

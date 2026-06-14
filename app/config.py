@@ -53,6 +53,17 @@ class Settings(BaseSettings):
         default=4096,
         description="Context window size for GGUF model"
     )
+    # KV-cache quantization for GGUF backend.
+    # Keys are more sensitive than values, so K stays at q8_0 and V at q4_0.
+    # Both require flash-attention (flash_attn=True in Llama constructor).
+    GGUF_CACHE_TYPE_K: str = Field(
+        default="q8_0",
+        description="KV-cache key quantization type (requires flash-attention): f16, q8_0, q5_0, q4_0"
+    )
+    GGUF_CACHE_TYPE_V: str = Field(
+        default="q4_0",
+        description="KV-cache value quantization type (requires flash-attention): f16, q8_0, q5_0, q4_0"
+    )
 
     # MLX Configuration (Apple Silicon native LLM)
     MLX_MODEL_CACHE_DIR: str = Field(
