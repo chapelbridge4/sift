@@ -209,12 +209,13 @@ async def run(top_k: int = 10, max_queries: int = 100) -> None:
 
         t0 = time.perf_counter()
         query_vec = list(model.embed([query_text]))[0].tolist()
-        hits = await client.search(
+        hits = (await client.query_points(
             COLLECTION_NAME,
-            query_vector=("dense", query_vec),
+            query=query_vec,
+            using="dense",
             limit=top_k,
             with_payload=True,
-        )
+        )).points
         query_ms = (time.perf_counter() - t0) * 1000
         latencies.append(query_ms)
 

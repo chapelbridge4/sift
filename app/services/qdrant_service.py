@@ -390,9 +390,10 @@ class QdrantService:
             )
 
             # Perform search
-            search_result = await self.client.search(
+            search_result = await self.client.query_points(
                 collection_name=collection_name,
-                query_vector=("dense", dense_query),
+                query=dense_query,
+                using="dense",
                 limit=top_k,
                 query_filter=filters,
                 with_payload=True,
@@ -400,7 +401,7 @@ class QdrantService:
 
             # Format results
             results = []
-            for point in search_result:
+            for point in search_result.points:
                 result = {
                     "id": point.id,
                     "score": point.score,
@@ -464,9 +465,10 @@ class QdrantService:
             )
 
             # Perform search using query_vector
-            search_result = await self.client.search(
+            search_result = await self.client.query_points(
                 collection_name=collection_name,
-                query_vector=("sparse", sparse_vector),
+                query=sparse_vector,
+                using="sparse",
                 limit=top_k,
                 query_filter=filters,
                 with_payload=True,
@@ -474,7 +476,7 @@ class QdrantService:
 
             # Format results
             results = []
-            for point in search_result:
+            for point in search_result.points:
                 result = {
                     "id": point.id,
                     "score": point.score,

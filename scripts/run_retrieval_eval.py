@@ -198,12 +198,13 @@ async def dense_search(
 ) -> List[Dict[str, Any]]:
     """Run dense-only search and return list of result dicts."""
     query_vec = list(dense_model.embed([query_text]))[0].tolist()
-    hits = await client.search(
+    hits = (await client.query_points(
         "eval_collection",
-        query_vector=("dense", query_vec),
+        query=query_vec,
+        using="dense",
         limit=top_k,
         with_payload=True,
-    )
+    )).points
     return [
         {
             "score": h.score,
