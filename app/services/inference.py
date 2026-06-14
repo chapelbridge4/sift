@@ -8,12 +8,18 @@ from app.config import get_settings
 
 @runtime_checkable
 class InferenceBackend(Protocol):
+    # Keyword-only optional params so both real backends (GGUFService, LLMService)
+    # — which order their positional params differently (temperature/conversation_history
+    # before model_profile) — structurally satisfy this Protocol. Callers MUST pass
+    # model_profile/max_tokens/temperature by keyword.
     async def generate_rag_response(
         self,
         query: str,
         retrieved_contexts: List[str],
-        model_profile: str = "fast",
-        max_tokens: int = 200,
+        *,
+        model_profile: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> str: ...
 
 
