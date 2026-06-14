@@ -190,6 +190,7 @@ class Settings(BaseSettings):
     RERANK_ENABLED: bool = False
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     RERANK_TOP_K: int = 5
+    RERANK_MIN_AVAILABLE_GB: float = 1.5
     DIVERSIFY_SOURCES: bool = True
 
     # Working Memory

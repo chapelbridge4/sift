@@ -111,11 +111,11 @@ class Amygdala:
             return None
 
         # Memory guard: check available RAM before loading
-        total_memory_gb = psutil.virtual_memory().total / (1024 ** 3)
-        if total_memory_gb > 7:
+        min_gb = getattr(self.settings, "RERANK_MIN_AVAILABLE_GB", 1.5)
+        available_gb = psutil.virtual_memory().available / (1024 ** 3)
+        if available_gb < min_gb:
             logger.warning(
-                f"Amygdala: System memory ({total_memory_gb:.1f}GB) > 7GB, "
-                "skipping cross-encoder to preserve RAM"
+                f"Amygdala: only {available_gb:.1f}GB free (< {min_gb}GB), skipping cross-encoder to preserve RAM"
             )
             return None
 

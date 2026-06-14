@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Standalone retrieval evaluation using embedded (in-memory) Qdrant.
-
-Runs without Docker or any external service — uses AsyncQdrantClient(location=":memory:").
+"""SMOKE TEST (not a benchmark): verifies the embedded-Qdrant + embedding + dense-search plumbing runs with zero external services. The corpus is synthetic and keyword-aligned, so the recall number is a plumbing check only — do NOT cite it. Real retrieval numbers: scripts/benchmark_beir.py.
 
 Usage:
     .venv/bin/python scripts/run_retrieval_eval.py
@@ -327,7 +324,7 @@ def main() -> None:
 
     avg_recall = summary["avg_recall"]
     if avg_recall >= 0.5:
-        print(f"\nPASS: avg recall@{args.top_k} = {avg_recall:.3f} (>= 0.5)")
+        print(f"\nSMOKE OK: retrieval plumbing works (synthetic corpus — not a quality metric)")
         sys.exit(0)
     else:
         print(f"\nWARN: avg recall@{args.top_k} = {avg_recall:.3f} (< 0.5 threshold)")
