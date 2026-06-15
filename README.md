@@ -1,8 +1,8 @@
-# sift — local-first RAG with honest evaluation
+# sift — local-first RAG with failure triage
 
 [![ci](https://github.com/chapelbridge4/sift/actions/workflows/ci.yml/badge.svg)](https://github.com/chapelbridge4/sift/actions/workflows/ci.yml)
 
-Most RAG tooling assumes a cloud LLM and a single tenant. **sift** runs the full loop — retrieval, generation, and evaluation — **offline on an 8 GB laptop**, with no cloud account and no Docker required. Inference uses GGUF/llama.cpp (Windows, Linux, macOS, CPU-capable); Apple-Silicon MLX is an optional fast-path.
+Most RAG tooling assumes a cloud LLM and a single tenant, and tells you *that* a query failed but not *why*. **sift** runs the full loop — retrieval, generation, evaluation, and **per-query failure triage** — **offline on an 8 GB laptop**, with no cloud account and no Docker required. Inference uses GGUF/llama.cpp (Windows, Linux, macOS, CPU-capable); Apple-Silicon MLX is an optional fast-path.
 
 On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, embedded Qdrant) retrieves at **recall@10 = 0.816** — 100 queries, ~20 ms/query, 5,183-doc corpus — measured against ground-truth relevance judgments, not keyword matching. Generation with Qwen3-4B (Q4_K_M) runs at **~19 tok/s, ~2.9 GB RSS** on an Apple M1 (8 GB). Full numbers and the quant × KV-cache matrix: [BENCHMARKS.md](BENCHMARKS.md).
 
@@ -13,10 +13,34 @@ On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, emb
 - **Local-first RAG pipeline** — dense / sparse / hybrid retrieval over Qdrant, reranking, and working-memory conversation context, behind a FastAPI API.
 - **Runs on low hardware** — GGUF/llama.cpp default backend (cross-platform, CPU-capable); embedded Qdrant means zero infrastructure to clone and run; KV-cache quantization (`q8_0`/`q4_0`, flash-attention) for context headroom.
 - **Measured honestly** — true recall@k on a public benchmark (BEIR/SciFact) plus a reproducible quant × KV-cache × throughput/RAM matrix; benchmarks state where they break, not just where they shine.
+- **Per-query failure triage** — classifies each failed query by a 16-type RAG error taxonomy across four pipeline stages (chunking / retrieval / reranking / generation), with per-stage attribution, a confidence, and a fix hint.
+
+## Failure triage
+
+When a query fails, sift says *why*. The `app/triage` package turns each query's pipeline trace into deterministic signals (was the gold doc retrieved? did the reranker bury it? is the answer grounded in the retrieved context?) and classifies the failure against a 16-type taxonomy (`app/triage/taxonomy.py`), with per-stage attribution and a fix hint. An optional local LLM judge (off by default) disambiguates generation-stage failures — no cloud judge, no API key.
+
+```python
+from app.triage.classifier import classify
+from app.triage.signals import QueryTrace
+
+verdict = classify(QueryTrace(query="...", retrieved=[...], gold_ids={"gold"},
+                              reranked=None, answer="...", top_k=10))
+# verdict.failure_types -> [(RAGFailureType.RELEVANT_NOT_RETRIEVED, 0.9)]
+# verdict.primary_stage -> "retrieval"
+# verdict.evidence      -> "recall_hit is False: no gold document was retrieved..."
+```
+
+Real run on BEIR/SciFact via `scripts/run_triage.py` (full output: [reports/triage/scifact_sample.md](reports/triage/scifact_sample.md)):
+
+```
+100 queries · 82% passed (gold retrieved) · 18% failed
+of the failures: 100% RELEVANT_NOT_RETRIEVED (retrieval stage)
+```
+
+Scope note (honest): that run feeds only retrieval signals (`answer=None`), so the measured failures are retrieval-stage misses — it is **not** a retrieval-vs-generation comparison. Generation-stage triage (UNFAITHFUL / INCOMPLETE / CONTEXT_IGNORED) activates when you supply answers and enable the optional local judge.
 
 ## Roadmap
 
-- **Per-query failure triage** — classifying each failed query by a RAG error taxonomy (chunking / retrieval / reranking / generation), per-tenant and per-pipeline-span. This is the headline direction; today the repo ships the pipeline + the honest evaluation it builds on.
 - RAG-aware KV-cache management (per-chunk precision, cross-query reuse of retrieved-passage KV).
 
 ## Privacy And Safety
