@@ -127,6 +127,9 @@ class Settings(BaseSettings):
     # Retrieval quality threshold (0.0-1.0) — logs warning when top score is below this
     RETRIEVAL_SCORE_THRESHOLD: float = 0.5
 
+    # Triage — per-query RAG failure classifier
+    TRIAGE_USE_LLM_JUDGE: bool = False  # When True, disambiguate generation failures via local LLM judge
+
     # Tuning suite — MLX optimization experiments
     # All values read from config, no hardcoding in tuning code
     KV_CACHE_QUANTIZATION: Optional[str] = None  # None, "q8", or "q4"
