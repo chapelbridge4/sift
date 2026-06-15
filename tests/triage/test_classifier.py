@@ -118,7 +118,7 @@ class TestTriageVerdictContract:
 # Retrieval miss → RELEVANT_NOT_RETRIEVED
 # ---------------------------------------------------------------------------
 
-class TestRetriievalMiss:
+class TestRetrievalMiss:
     def test_failure_type_is_relevant_not_retrieved(self):
         verdict = classify(_gold_not_retrieved())
         types = [ft for ft, _ in verdict.failure_types]
@@ -220,8 +220,7 @@ class TestPassingQuery:
 
     def test_evidence_indicates_pass(self):
         verdict = classify(_passing_query())
-        # evidence should be non-empty and indicate no failure
-        assert verdict.evidence != ""
+        assert "no failure" in verdict.evidence.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -112,7 +112,7 @@ def classify(trace: QueryTrace, *, use_llm_judge: bool | None = None) -> TriageV
     return TriageVerdict(
         failure_types=[],
         primary_stage=None,
-        evidence="no failure detected: gold retrieved, not demoted, answer present, quality-ok, and grounded in context.",
+        evidence="no failure detected: gold retrieved, not demoted, answer present, and grounded in context.",
     )
 
 

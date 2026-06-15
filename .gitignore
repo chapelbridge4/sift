@@ -44,8 +44,8 @@ docs/plans/
 docs/protocol/
 docs/reviews/
 docs/tasks/
-docs/superpowers/plans/2026-04-21-brain-rag-dependency-and-test-fixes.md
-docs/superpowers/plans/2026-05-20-m1-8gb-9b-plus-llm-feasibility.md
+docs/superpowers/
+docs/audits/
 
 # One-off local experiments
 test_8bit_model.py

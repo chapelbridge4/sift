@@ -31,7 +31,7 @@ import asyncio
 import sys
 import time
 import uuid
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 # Make project root importable

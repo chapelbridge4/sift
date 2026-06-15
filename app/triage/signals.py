@@ -129,7 +129,7 @@ def _score_gap(retrieved: list[dict]) -> float:
     """Top-1 score minus last retrieved score, or 0.0 when < 2 results."""
     if len(retrieved) < 2:
         return 0.0
-    return float(retrieved[0]["score"]) - float(retrieved[-1]["score"])
+    return float(retrieved[0].get("score", 0.0)) - float(retrieved[-1].get("score", 0.0))
 
 
 def _reranker_moved_gold_down(
