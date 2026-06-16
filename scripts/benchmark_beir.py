@@ -109,12 +109,8 @@ def download_dataset(dataset: str) -> None:
     print(f"  Unzipping to {CACHE_DIR} ...")
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(CACHE_DIR)
+    zip_path.unlink(missing_ok=True)
     print("  Done.")
-
-
-# Keep legacy name for backward compatibility
-def download_scifact() -> None:
-    download_dataset("scifact")
 
 
 def parse_corpus(dataset: str = "scifact") -> Dict[str, str]:
@@ -276,6 +272,9 @@ async def run(
         rrs.append(reciprocal_rank(retrieved_ids, relevant))
 
     n_queries = len(recalls)
+    if n_queries == 0:
+        sys.exit("No queries to evaluate")
+
     avg_recall = sum(recalls) / n_queries
     avg_ndcg = sum(ndcgs) / n_queries
     avg_mrr = sum(rrs) / n_queries
@@ -295,8 +294,8 @@ async def run(
             "dataset": dataset,
             "model": MODEL_NAME,
             "n_queries": n_queries,
-            "recall_at_10": round(avg_recall, 6),
-            "ndcg_at_10": round(avg_ndcg, 6),
+            f"recall_at_{top_k}": round(avg_recall, 6),
+            f"ndcg_at_{top_k}": round(avg_ndcg, 6),
             "mrr": round(avg_mrr, 6),
             "top_k": top_k,
             "avg_latency_ms": round(avg_ms, 2),
