@@ -32,6 +32,9 @@ app/tuning/results/
 papers/
 mockups/
 
+# Downloaded benchmark datasets (BEIR: scifact, nfcorpus, ...) — fetched on demand, never committed
+datasets/
+
 # Local agent/editor state
 AGENTS.md
 .agents/
