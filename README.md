@@ -8,6 +8,68 @@ On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, emb
 
 > Research/prototype service — no built-in authentication; the ingestion endpoint accepts server-local file paths. Keep it on trusted local networks unless you add auth and deployment hardening.
 
+## Demo
+
+```bash
+.venv/bin/python scripts/demo.py
+```
+
+Expected output (real run — no fabrication):
+
+```
+============================================================
+sift — local-first RAG with per-query failure triage
+============================================================
+
+[1/4] Loading sample corpus from examples/corpus/ ...
+  quantization.txt  (5 lines)
+  rag.txt  (5 lines)
+  triage.txt  (5 lines)
+
+[2/4] Embedding with sentence-transformers/all-MiniLM-L6-v2 ...
+  dim=384  docs=3  elapsed=95ms
+
+[3/4] Indexing into in-memory Qdrant ...
+  indexed 3 document(s)
+
+[4/4] Retrieval demo
+
+  Query: "How does dense retrieval use embeddings to find relevant documents?"
+
+  Top-3 retrieved chunks:
+    #1  [rag]  score=0.6778
+        Retrieval-Augmented Generation (RAG) grounds language model responses in retrieved documents, reducing hallucination by anchoring output to factual passages.
+    #2  [triage]  score=0.4187
+        Per-query failure triage classifies why a RAG query failed by decomposing the pipeline into stages: chunking, retrieval, reranking, and generation.
+    #3  [quantization]  score=0.3123
+        GGUF is a binary format for storing quantized large language model weights, designed for efficient CPU and Apple Silicon inference via llama.
+
+  Triage demo (intentionally failing query)
+  Query:   "What is speculative decoding and how does it speed up autoregressive generation?"
+  Gold ID: "speculative_decoding"  (absent from corpus — retrieval must miss)
+
+  Triage verdict:
+    failure_type  : RELEVANT_NOT_RETRIEVED
+    stage         : retrieval
+    confidence    : 0.90
+    fix_hint      : Increase top_k, try hybrid (dense + sparse) retrieval, or use query expansion / HyDE to bridge the vocabulary gap.
+    primary_stage : retrieval
+    evidence      : recall_hit is False: no gold document was retrieved in the top-k candidates.
+
+============================================================
+Done — no model download, no Docker, no cloud.  Time to add your corpus.
+============================================================
+```
+
+![sift demo](docs/assets/demo.gif)
+
+<!-- record: asciinema rec demo.cast -c ".venv/bin/python scripts/demo.py"; agg demo.cast docs/assets/demo.gif -->
+<!-- GIF capture is a MANUAL one-time human step — the text output block above makes this README useful before the GIF lands. -->
+
+<!-- GitHub repo metadata (run ONCE manually — do NOT execute in CI):
+gh repo edit chapelbridge4/sift --description "Local-first RAG with per-query failure triage — runs on 8GB, GGUF/llama.cpp, honest BEIR evals" --add-topic rag --add-topic llm --add-topic local-first --add-topic evaluation --add-topic qdrant --add-topic llama-cpp --add-topic information-retrieval
+-->
+
 ## What it does
 
 - **Local-first RAG pipeline** — dense / sparse / hybrid retrieval over Qdrant, reranking, and working-memory conversation context, behind a FastAPI API.

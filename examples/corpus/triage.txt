@@ -1,0 +1,5 @@
+Per-query failure triage classifies why a RAG query failed by decomposing the pipeline into stages: chunking, retrieval, reranking, and generation.
+The most common retrieval-stage failure is RELEVANT_NOT_RETRIEVED: the correct document exists in the index but does not appear in the top-k candidates for the query.
+A reranking-stage failure (RELEVANT_DEMOTED) occurs when a cross-encoder reranker demotes a gold document that was successfully retrieved, pushing it below the context window cutoff.
+Generation-stage failures include UNFAITHFUL (hallucinated claims), INCOMPLETE (correct but partial answers), and CONTEXT_IGNORED (the model ignores the provided context and answers from memory).
+Deterministic rule-based classification runs in microseconds; an optional local LLM judge can disambiguate generation subtypes but is never required for retrieval-stage diagnosis.

@@ -1,0 +1,5 @@
+GGUF is a binary format for storing quantized large language model weights, designed for efficient CPU and Apple Silicon inference via llama.cpp.
+Q4_K_M quantization reduces each weight to approximately 4 bits using k-means clustering with mixed precision on attention layers, cutting memory from ~7 GB to ~2.5 GB for a 4B-parameter model.
+KV-cache quantization (q8_0 or q4_0 cache precision) further reduces the per-token memory overhead of the key-value attention cache during generation.
+Flash Attention rewrites the attention computation to avoid materializing the full N×N attention matrix, enabling longer context windows within a fixed memory budget.
+On an Apple M1 with 8 GB unified memory, a Qwen3-4B model at Q4_K_M generates at roughly 19 tokens per second with a resident set size of about 2.9 GB.

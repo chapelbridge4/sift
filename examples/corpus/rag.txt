@@ -1,0 +1,5 @@
+Retrieval-Augmented Generation (RAG) grounds language model responses in retrieved documents, reducing hallucination by anchoring output to factual passages.
+Dense retrieval encodes queries and documents into a shared embedding space using a bi-encoder; documents whose embeddings lie close to the query embedding are returned as candidates.
+A vector index such as Qdrant stores these embeddings and supports approximate nearest-neighbour search at millisecond latency, even over millions of documents.
+The top-k retrieved chunks are prepended to the model prompt as context, so the generator can cite specific passages rather than rely on parametric memory alone.
+Hybrid retrieval combines dense embeddings with sparse BM25 term-matching to capture both semantic similarity and exact keyword overlap, improving recall on out-of-distribution queries.
