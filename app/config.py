@@ -175,6 +175,8 @@ class Settings(BaseSettings):
         description="Sparse embedding strategy: 'bm25' for standard BM25, 'bm25plus' for stronger BM25 variant"
     )
 
+    ALLOWED_CORPUS_DIR: str = "./data/corpus"  # ingestion is sandboxed to this dir; paths outside are rejected (security)
+
     # Document Processing
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 128

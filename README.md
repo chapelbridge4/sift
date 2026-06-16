@@ -46,7 +46,7 @@ Scope note (honest): that run feeds only retrieval signals (`answer=None`), so t
 ## Privacy And Safety
 
 - Do not commit `.env`, logs, Qdrant storage, SQLite runtime databases, imported document corpora, MLX caches, or benchmark result dumps. The `.gitignore` is configured for these local artifacts.
-- The `/upload_files` endpoint indexes files by server-local path. If the API is exposed to untrusted clients, a caller could ask it to read local files the service process can access.
+- Ingestion is sandboxed to `ALLOWED_CORPUS_DIR` (default `./data/corpus`); paths outside it — including absolute paths, `..` traversal, and symlink escapes — are rejected with HTTP 400. The API still has no built-in authentication; keep it on trusted local networks unless you add auth.
 - Retrieved document payloads include source filenames and chunk text. Treat Qdrant storage as private data.
 - Application logs avoid raw query/prompt text by default, but deployment logging should still be reviewed before public hosting.
 

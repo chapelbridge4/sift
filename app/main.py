@@ -208,10 +208,17 @@ async def upload_files(request: UploadFilesRequest):
                 detail=f"Collection '{request.collection_name}' does not exist. Create it first."
             )
 
+        # Reject paths that escape the corpus sandbox before touching disk
+        from app.security import resolve_safe_paths, UnsafePathError
+        try:
+            safe_paths = resolve_safe_paths(request.file_paths, settings.ALLOWED_CORPUS_DIR)
+        except UnsafePathError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
         # Form memories from documents
         result = await brain.hippocampus.form_memories(
             collection_name=request.collection_name,
-            file_paths=request.file_paths,
+            file_paths=safe_paths,
             batch_size=request.batch_size or 32
         )
 
