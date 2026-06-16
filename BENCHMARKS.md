@@ -16,15 +16,22 @@ Apple M1, 8 GB unified memory; llama.cpp via llama-cpp-python (Metal); embedded 
 
 ## Retrieval Quality
 
-Method: dense vector search (cosine similarity) over BEIR SciFact corpus.
-Metric: true recall@k against BEIR qrels (not surrogate scores).
+Method: dense vector search (cosine similarity, fastembed MiniLM-L6), embedded Qdrant.
+Metrics: recall@10, nDCG@10, MRR against BEIR true qrels (not surrogate scores).
+Coverage: full test set, deterministic (no subsampling).
 
-| Encoder                              | Dataset  | Metric     | Value | Queries | Corpus | Latency     |
-|--------------------------------------|----------|------------|-------|---------|--------|-------------|
-| sentence-transformers/all-MiniLM-L6-v2 | SciFact | recall@10  | 0.816 | 100     | 5 183  | 20 ms/query |
+| Encoder                                 | Dataset   | recall@10 | nDCG@10 | MRR   | #queries | Corpus | Latency      | Report |
+|-----------------------------------------|-----------|----------:|--------:|------:|---------:|-------:|-------------:|--------|
+| sentence-transformers/all-MiniLM-L6-v2  | SciFact   | 0.774     | 0.624   | 0.578 | 300      | 5 183  | 16 ms/query  | [scifact.json](reports/retrieval/scifact.json) |
+| sentence-transformers/all-MiniLM-L6-v2  | NFCorpus  | 0.154     | 0.317   | 0.511 | 323      | 3 633  | 16 ms/query  | [nfcorpus.json](reports/retrieval/nfcorpus.json) |
 
-> recall@10 is a retrieval-only metric. It is independent of the generation KV-cache settings
-> and does not change across the combos below.
+> NFCorpus has many relevant documents per query (medical literature), so recall@10 is
+> structurally low — MRR better reflects ranking quality on this dataset.
+>
+> recall@10 is a retrieval-only metric. It is independent of the generation KV-cache
+> settings and does not change across the combos below.
+
+Measured: 2026-06-16, feat/sift-v1.1-hardening branch, full test sets.
 
 ---
 

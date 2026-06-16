@@ -1,0 +1,11 @@
+{
+  "dataset": "scifact",
+  "model": "sentence-transformers/all-MiniLM-L6-v2",
+  "n_queries": 300,
+  "recall_at_10": 0.774333,
+  "ndcg_at_10": 0.62386,
+  "mrr": 0.578389,
+  "top_k": 10,
+  "avg_latency_ms": 16.16,
+  "corpus_size": 5183
+}
