@@ -37,7 +37,14 @@ Real run on BEIR/SciFact via `scripts/run_triage.py` (full output: [reports/tria
 of the failures: 100% RELEVANT_NOT_RETRIEVED (retrieval stage)
 ```
 
-Scope note (honest): that run feeds only retrieval signals (`answer=None`), so the measured failures are retrieval-stage misses — it is **not** a retrieval-vs-generation comparison. Generation-stage triage (UNFAITHFUL / INCOMPLETE / CONTEXT_IGNORED) activates when you supply answers and enable the optional local judge.
+Scope note (honest): that run feeds only retrieval signals (`answer=None`), so the measured failures are retrieval-stage misses — it is **not** a retrieval-vs-generation comparison. It is the zero-dependency default (only the embedder is downloaded).
+
+To exercise more of the pipeline, the same runner takes `--rerank` and `--with-answers`:
+
+- `--rerank` runs the brain cross-encoder reranker (`app/brain/amygdala.py`) over each query's retrieved candidates and feeds the reranked doc_id order into the classifier, so **reranking-stage** demotions (`RELEVANT_DEMOTED`) surface alongside retrieval misses. A small (~80 MB) cross-encoder downloads on first use; CPU-only.
+- `--with-answers` additionally generates a real answer per query via the local backend and enables the optional LLM judge, so **generation-stage** subtypes (`UNFAITHFUL` / `INCOMPLETE` / `CONTEXT_IGNORED`) can be disambiguated. Requires a downloaded GGUF/MLX model and is slow; it skips gracefully per-query when no model is available.
+
+The multi-stage report ([reports/triage/scifact_full_sample.md](reports/triage/scifact_full_sample.md)) opens with an **active-signals line** (retrieved / reranked / answers / judge) so the distribution is honestly scoped — a stage with no live signal cannot fail there. With `--rerank` (and optionally `--with-answers`) the full 16-type taxonomy is genuinely exercised, not just asserted.
 
 ## Roadmap
 
