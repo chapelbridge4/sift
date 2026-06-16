@@ -29,6 +29,7 @@ from app.models.schemas import (
     HealthResponse,
 )
 from app.brain import PrefrontalCortex
+from app.security import resolve_safe_paths, UnsafePathError
 
 
 # Configure logging
@@ -209,7 +210,6 @@ async def upload_files(request: UploadFilesRequest):
             )
 
         # Reject paths that escape the corpus sandbox before touching disk
-        from app.security import resolve_safe_paths, UnsafePathError
         try:
             safe_paths = resolve_safe_paths(request.file_paths, settings.ALLOWED_CORPUS_DIR)
         except UnsafePathError as e:

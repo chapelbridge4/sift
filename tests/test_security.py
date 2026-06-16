@@ -35,3 +35,11 @@ def test_rejects_missing_file(tmp_path):
     root = tmp_path / "corpus"; root.mkdir()
     with pytest.raises(UnsafePathError):
         resolve_safe_paths(["nope.txt"], root)
+
+def test_empty_list_returns_empty():
+    assert resolve_safe_paths([], "/tmp") == []
+
+def test_rejects_empty_string_element(tmp_path):
+    root = tmp_path / "corpus"; root.mkdir()
+    with pytest.raises(UnsafePathError):
+        resolve_safe_paths([""], root)
