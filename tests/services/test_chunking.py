@@ -2,7 +2,6 @@
 Tests for structure-aware Markdown chunking.
 """
 
-import pytest
 from app.services.text_splitter import MarkdownChunker, RecursiveCharacterTextSplitter
 
 

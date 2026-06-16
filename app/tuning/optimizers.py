@@ -12,10 +12,10 @@ import hashlib
 import inspect
 import os
 from typing import Any, Callable, Dict, Optional
+
 from loguru import logger
 
 from app.config import get_settings
-
 
 # Module-level KV cache for prefix caching (max 3 entries to respect 8GB limit)
 _prefix_cache: Dict[str, tuple[Any, int]] = {}

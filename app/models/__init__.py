@@ -1,21 +1,21 @@
 """Models package for Brain-inspired RAG system."""
 
 from .schemas import (
+    CollectionCreate,
+    CollectionDelete,
+    CollectionResponse,
+    DocumentMetadata,
+    EmotionalContext,
     FileFormat,
     FusionMethod,
+    HealthResponse,
     ModelProfile,
-    CollectionCreate,
-    CollectionResponse,
-    CollectionDelete,
-    DocumentMetadata,
-    UploadFilesRequest,
-    UploadFilesResponse,
     QueryRequest,
     QueryResponse,
     RetrievedDocument,
-    EmotionalContext,
+    UploadFilesRequest,
+    UploadFilesResponse,
     WorkingMemoryContext,
-    HealthResponse,
 )
 
 __all__ = [

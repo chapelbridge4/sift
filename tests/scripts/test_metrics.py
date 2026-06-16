@@ -1,5 +1,6 @@
 import math
-from scripts.benchmark_beir import recall_at_k, ndcg_at_k, reciprocal_rank
+
+from scripts.benchmark_beir import ndcg_at_k, recall_at_k, reciprocal_rank
 
 
 def test_recall_at_k():

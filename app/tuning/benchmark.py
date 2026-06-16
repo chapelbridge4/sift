@@ -29,15 +29,14 @@ import re
 import time
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Dict, List, Optional
 
 from app.config import get_settings
 from app.services.llm_service import LLMService
 from app.services.qdrant_service import QdrantService
-from app.tuning.diagnostics import memory_snapshot, detect_swap_pressure
+from app.tuning.diagnostics import detect_swap_pressure, memory_snapshot
 from app.tuning.profiles import get_baseline_profile
 from app.tuning.quality import detect_garbage, is_valid_response
-
 
 # Patterns for detection
 REPETITION_PATTERN = re.compile(r"\b(\w+)\s+(\1\s+){4,}", re.IGNORECASE)
@@ -208,13 +207,13 @@ async def run_benchmark(
         )
 
         if gen_metrics["thinking_leaked"]:
-            print(f"  WARNING: Thinking leak detected!")
+            print("  WARNING: Thinking leak detected!")
         if gen_metrics["repetition_detected"]:
-            print(f"  WARNING: Repetition detected!")
+            print("  WARNING: Repetition detected!")
         if gen_metrics["garbage_detected"]:
-            print(f"  WARNING: Garbage detected!")
+            print("  WARNING: Garbage detected!")
         if not gen_metrics["valid_response"]:
-            print(f"  WARNING: Invalid response!")
+            print("  WARNING: Invalid response!")
 
         # Build result record
         result = {
@@ -391,7 +390,7 @@ async def run_multi_turn_benchmark(
             )
 
             if generation_ms > 15000:
-                print(f"    WARNING: High latency detected, checking swap...")
+                print("    WARNING: High latency detected, checking swap...")
                 if detect_swap_pressure():
                     print("    ABORTED: Swap pressure detected")
                     break
@@ -426,7 +425,7 @@ async def run_multi_turn_benchmark(
         turn2_avg = sum(r["generation_ms"] for r in by_turn[2]) / len(by_turn[2])
         improvement = (turn1_avg - turn2_avg) / turn1_avg * 100
 
-        print(f"\nKV Cache Effectiveness:")
+        print("\nKV Cache Effectiveness:")
         print(f"  Turn 1 avg: {turn1_avg:.0f}ms")
         print(f"  Turn 2 avg: {turn2_avg:.0f}ms")
         print(f"  Improvement: {improvement:.1f}%")
@@ -435,10 +434,10 @@ async def run_multi_turn_benchmark(
             print(f"  Status: KV persistence WORKING ({improvement:.1f}% speedup)")
         else:
             print(
-                f"  Status: mlx-vlm does not expose cache passing in generate() — KV dormant."
+                "  Status: mlx-vlm does not expose cache passing in generate() — KV dormant."
             )
             print(
-                f"  (No improvement or <10% improvement means no effective KV reuse)"
+                "  (No improvement or <10% improvement means no effective KV reuse)"
             )
 
     print(f"\nResults written: {result_file}")
@@ -524,7 +523,7 @@ def print_4b_validation_table(fast_results: List[dict], balanced_results: List[d
         action = decision["actions"].get(profile, "UNKNOWN")
 
         print(f"\n| {profile:12s} | action={action}")
-        print(f"|-------------------|------------------------------------------|")
+        print("|-------------------|------------------------------------------|")
         print(f"| avg gen (ms)      | {avg_gen:11.1f} |")
         print(f"| avg retrieval(ms) | {avg_retr:11.1f} |")
         print(f"| avg total (ms)    | {avg_total:11.1f} |")

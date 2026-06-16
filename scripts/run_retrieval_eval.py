@@ -21,22 +21,18 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Project root on path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from qdrant_client import AsyncQdrantClient, models
+from fastembed import TextEmbedding
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
-    VectorParams,
-    SparseVectorParams,
-    SparseIndexParams,
     PointStruct,
-    Modifier,
+    VectorParams,
 )
-from fastembed import TextEmbedding, SparseTextEmbedding
-
 
 # ---------------------------------------------------------------------------
 # Synthetic corpus — one passage per fixture query topic, keyed to keywords
@@ -231,7 +227,7 @@ async def run_eval(fixture_path: str, top_k: int) -> Dict[str, Any]:
         print(f"ERROR: no queries in {fixture_path}")
         sys.exit(1)
 
-    print(f"Loading embedding model (sentence-transformers/all-MiniLM-L6-v2)...")
+    print("Loading embedding model (sentence-transformers/all-MiniLM-L6-v2)...")
     t0 = time.perf_counter()
     dense_model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
     # Determine dim from a test embed
@@ -325,7 +321,7 @@ def main() -> None:
 
     avg_recall = summary["avg_recall"]
     if avg_recall >= 0.5:
-        print(f"\nSMOKE OK: retrieval plumbing works (synthetic corpus — not a quality metric)")
+        print("\nSMOKE OK: retrieval plumbing works (synthetic corpus — not a quality metric)")
         sys.exit(0)
     else:
         print(f"\nWARN: avg recall@{args.top_k} = {avg_recall:.3f} (< 0.5 threshold)")

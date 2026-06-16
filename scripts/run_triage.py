@@ -41,6 +41,10 @@ from fastembed import TextEmbedding
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
+from app.triage.classifier import classify
+from app.triage.signals import QueryTrace
+from app.triage.taxonomy import RAGFailureType
+
 # Reuse SciFact loaders from benchmark_beir
 from scripts.benchmark_beir import (
     COLLECTION_NAME,
@@ -50,10 +54,6 @@ from scripts.benchmark_beir import (
     parse_qrels,
     parse_queries,
 )
-
-from app.triage.classifier import classify
-from app.triage.signals import QueryTrace
-from app.triage.taxonomy import RAGFailureType
 
 # ---------------------------------------------------------------------------
 # Async triage runner
@@ -260,21 +260,21 @@ def _write_report(
     lines.append("")
     lines.append("## Dataset")
     lines.append("")
-    lines.append(f"| Field | Value |")
-    lines.append(f"|-------|-------|")
-    lines.append(f"| Dataset | BEIR / SciFact (test split) |")
+    lines.append("| Field | Value |")
+    lines.append("|-------|-------|")
+    lines.append("| Dataset | BEIR / SciFact (test split) |")
     lines.append(f"| Corpus size | {corpus_size:,} documents |")
     lines.append(f"| Queries evaluated | {n_queries} |")
     lines.append(f"| top_k | {top_k} |")
-    lines.append(f"| Embedding model | sentence-transformers/all-MiniLM-L6-v2 (fastembed) |")
-    lines.append(f"| Vector store | Qdrant in-memory (no Docker) |")
-    lines.append(f"| answer | None (retrieval-focused; no LLM) |")
-    lines.append(f"| reranked | None (no reranker) |")
+    lines.append("| Embedding model | sentence-transformers/all-MiniLM-L6-v2 (fastembed) |")
+    lines.append("| Vector store | Qdrant in-memory (no Docker) |")
+    lines.append("| answer | None (retrieval-focused; no LLM) |")
+    lines.append("| reranked | None (no reranker) |")
     lines.append("")
     lines.append("## Retrieval Results")
     lines.append("")
-    lines.append(f"| Metric | Value |")
-    lines.append(f"|--------|-------|")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
     lines.append(f"| Total queries | {n_queries} |")
     lines.append(f"| Passed (gold in top-{top_k}) | {n_pass} ({pass_rate*100:.1f}%) |")
     lines.append(f"| Failed (gold not retrieved) | {n_fail} ({(1-pass_rate)*100:.1f}%) |")

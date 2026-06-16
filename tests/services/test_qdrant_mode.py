@@ -4,8 +4,6 @@ No Qdrant server is required when QDRANT_MODE=embedded.
 """
 
 import asyncio
-import os
-import pytest
 
 from app.services.qdrant_service import QdrantService
 

@@ -7,11 +7,12 @@ Inspired by the hippocampus brain region responsible for:
 - Spatial navigation and context (semantic search)
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from loguru import logger
 
-from app.services.qdrant_service import QdrantService
 from app.services.document_parser import DocumentParser
+from app.services.qdrant_service import QdrantService
 
 
 class Hippocampus:

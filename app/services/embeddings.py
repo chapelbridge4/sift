@@ -3,15 +3,14 @@ Embedding service for dense and sparse (BM25) vector generation.
 Uses FastEmbed for efficient embedding generation.
 """
 
-from typing import List, Tuple, Dict, Any
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, List, Tuple
 
-from fastembed import TextEmbedding, SparseTextEmbedding
+from fastembed import SparseTextEmbedding, TextEmbedding
 from loguru import logger
 
 from app.config import get_settings
-from app.utils.async_helpers import AsyncBatchProcessor, chunks
+from app.utils.async_helpers import chunks
 
 
 class EmbeddingService:

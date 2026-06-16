@@ -7,30 +7,28 @@ Provides REST API endpoints for:
 - Query and retrieval with LLM generation
 """
 
+import sys
 import time
-from typing import List
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-import sys
 
+from app.brain import PrefrontalCortex
 from app.config import get_settings
 from app.models.schemas import (
     CollectionCreate,
-    CollectionResponse,
     CollectionDelete,
-    UploadFilesRequest,
-    UploadFilesResponse,
+    CollectionResponse,
+    HealthResponse,
     QueryRequest,
     QueryResponse,
     RetrievedDocument,
-    HealthResponse,
+    UploadFilesRequest,
+    UploadFilesResponse,
 )
-from app.brain import PrefrontalCortex
-from app.security import resolve_safe_paths, UnsafePathError
-
+from app.security import UnsafePathError, resolve_safe_paths
 
 # Configure logging
 settings = get_settings()

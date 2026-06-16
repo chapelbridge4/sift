@@ -4,8 +4,8 @@ Tuning profiles for MLX optimization experiments.
 Reads all model IDs, paths, and thresholds from app/config.py — no hardcoding.
 """
 
+
 from app.config import get_settings
-from typing import Dict, Any
 
 
 class TuningProfile:

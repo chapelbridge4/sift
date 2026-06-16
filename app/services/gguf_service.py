@@ -24,14 +24,12 @@ Usage:
 """
 
 import asyncio
-import os
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import List, Optional
 
 from loguru import logger
 
 from app.config import get_settings
-
 
 _DEFAULT_REPO_ID = "unsloth/Qwen3-4B-GGUF"
 _DEFAULT_FILENAME = "Qwen3-4B-Q4_K_M.gguf"

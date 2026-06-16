@@ -3,9 +3,10 @@ SQLite-backed ConfigManager for Brain-RAG Qdrant settings.
 Provides hardware-aware dynamic configuration at startup.
 """
 
-import sqlite3
 import os
+import sqlite3
 from typing import Optional
+
 from loguru import logger
 
 try:

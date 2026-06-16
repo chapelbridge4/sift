@@ -17,17 +17,16 @@ import asyncio
 import json
 import sys
 import time
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, List, Optional
 
 sys.path.insert(0, str(__file__).rsplit('/scripts/', 1)[0])
 
-from app.config import get_settings
 from tests.benchmark_fixtures import (
+    export_fixtures_as_metadata,
+    export_fixtures_as_texts,
     get_benchmark_documents,
     get_benchmark_queries,
-    export_fixtures_as_texts,
-    export_fixtures_as_metadata,
 )
 
 if TYPE_CHECKING:
@@ -132,7 +131,7 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
 
     exists = await brain.hippocampus.memory_exists(collection_name)
     if exists:
-        print(f"  Collection exists, deleting first...")
+        print("  Collection exists, deleting first...")
         await brain.hippocampus.forget_memories(collection_name)
 
     success = await brain.hippocampus.create_memory_space(collection_name)
@@ -152,7 +151,6 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
     metadatas = [m for m in metadata]
 
     from app.utils.async_helpers import chunks
-    from app.services.embeddings import EmbeddingService
 
     embedding_service = brain.hippocampus.qdrant_service.embedding_service
     total_indexed = 0
@@ -162,6 +160,7 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
 
         import uuid
         from datetime import datetime
+
         from qdrant_client.models import PointStruct, SparseVector
 
         points = []
@@ -263,7 +262,7 @@ async def cleanup_collection(brain: PrefrontalCortex, collection_name: str) -> N
 
 async def run_benchmark(args: argparse.Namespace) -> BenchmarkReport:
     """Run the complete benchmark suite."""
-    print(f"\n=== Brain_rag Local Benchmark ===")
+    print("\n=== Brain_rag Local Benchmark ===")
     print(f"Model profile: {args.model_profile}")
     print(f"Fusion method: {args.fusion_method}")
     print(f"Sparse strategy: {args.sparse_strategy}")
@@ -298,7 +297,7 @@ async def run_benchmark(args: argparse.Namespace) -> BenchmarkReport:
             queries_with_answers += 1
         total_latency += result.total_latency_seconds
 
-    print(f"\n[3/4] Cleaning up collection...")
+    print("\n[3/4] Cleaning up collection...")
     await cleanup_collection(brain, args.collection_name)
 
     from datetime import datetime
@@ -321,7 +320,7 @@ async def run_benchmark(args: argparse.Namespace) -> BenchmarkReport:
 
 def print_report(report: BenchmarkReport) -> None:
     """Print benchmark report in table format."""
-    print(f"\n[4/4] Benchmark Report")
+    print("\n[4/4] Benchmark Report")
     print("=" * 70)
 
     widths = [40, 8, 6, 10, 8, 8]
@@ -343,7 +342,7 @@ def print_report(report: BenchmarkReport) -> None:
     avg_latency = report.average_latency_seconds
     total_time = sum(r.total_latency_seconds for r in report.results)
 
-    print(f"\n--- Summary ---")
+    print("\n--- Summary ---")
     print(f"Model profile:       {report.model_profile}")
     print(f"Fusion method:       {report.fusion_method}")
     print(f"Sparse strategy:     {report.sparse_strategy}")

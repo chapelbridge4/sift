@@ -2,11 +2,9 @@
 Tests for benchmark harness.
 """
 
-import pytest
 import json
-import os
-import tempfile
-from app.tuning.benchmark import detect_repetition, detect_thinking_leak, count_tokens
+
+from app.tuning.benchmark import count_tokens, detect_repetition, detect_thinking_leak
 
 
 class TestRepetitionDetection:

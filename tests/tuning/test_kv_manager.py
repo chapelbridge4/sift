@@ -10,12 +10,12 @@ Linux where mlx is absent). We patch at the mlx.core module level so the
 lazy ``import mlx.core as mx`` inside the methods picks up the mock.
 """
 
-from unittest.mock import patch, MagicMock
+import sys
 import tempfile
 import time
-from pathlib import Path
 import types
-import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import app.core.kv_manager as kv_mod
 from app.core.kv_manager import KVManager

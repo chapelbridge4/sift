@@ -2,9 +2,9 @@
 Unit tests for optimizer wrappers.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
-from app.tuning.optimizers import KVCacheOptimizer, SpeculativeDecoder, PrefixCache
+
+from app.tuning.optimizers import KVCacheOptimizer, PrefixCache, SpeculativeDecoder
 
 
 class TestKVCacheOptimizer:

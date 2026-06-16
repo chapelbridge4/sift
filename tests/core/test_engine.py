@@ -1,6 +1,7 @@
 import importlib.util
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # mlx_vlm is an Apple-Silicon-only optional dependency; skip MLX-specific tests
 # when it isn't installed (e.g. Linux CI running the default GGUF backend).

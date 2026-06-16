@@ -7,12 +7,12 @@ Single code path for all requests — mlx-vlm handles both text-only and vision.
 
 import asyncio
 import os
-import re
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
 from loguru import logger
 
-from app.config import get_settings
 import app.tuning.quality as _quality
+from app.config import get_settings
 
 
 class ModelManager:
@@ -100,10 +100,8 @@ class LLMService:
         if model_id in self._model_cache:
             return self._model_cache[model_id]
 
-        import mlx_vlm
-        from mlx_vlm import load as vlm_load
-        import mlx.core as mx
         import psutil
+        from mlx_vlm import load as vlm_load
 
         # Check swap pressure before loading
         swap = psutil.swap_memory()

@@ -7,10 +7,8 @@ TRIAGE_USE_LLM_JUDGE is False/default throughout.
 
 from __future__ import annotations
 
-import pytest
 from app.triage.signals import QueryTrace
 from app.triage.taxonomy import RAGFailureType
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -90,7 +88,6 @@ def _passing_query() -> QueryTrace:
 # ---------------------------------------------------------------------------
 
 from app.triage.classifier import TriageVerdict, classify  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # TriageVerdict dataclass contract

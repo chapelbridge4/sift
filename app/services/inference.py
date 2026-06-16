@@ -1,7 +1,8 @@
 """Inference backend selection. GGUF (cross-platform) is default; MLX is the Apple fast-path."""
 from __future__ import annotations
+
 import os
-from typing import Protocol, List, runtime_checkable
+from typing import List, Protocol, runtime_checkable
 
 from app.config import get_settings
 

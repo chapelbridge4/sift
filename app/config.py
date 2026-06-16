@@ -3,11 +3,12 @@ Configuration module for Brain-inspired RAG system.
 Handles environment variables and application settings.
 """
 
-from pydantic_settings import BaseSettings
-from pydantic import Field
-from functools import lru_cache
-from typing import Optional, List
 import threading
+from functools import lru_cache
+from typing import List, Optional
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 from app.config_manager import ConfigManager
 

@@ -7,22 +7,21 @@ Usage:
     .venv/bin/python -m app.tuning.eval_harness --fixture tests/fixtures/rag_queries.json --skip-llm
 """
 
+import argparse
+import asyncio
 import json
 import sys
 import time
-import asyncio
-import argparse
-from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
 
 import psutil
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.services.qdrant_service import QdrantService
 from app.services.llm_service import LLMService
+from app.services.qdrant_service import QdrantService
 
 
 def load_fixtures(fixture_path: str) -> dict:

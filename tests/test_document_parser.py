@@ -4,10 +4,9 @@ Tests structure-aware chunking quality on text fixtures.
 """
 
 import unittest
-import tempfile
-import os
 from pathlib import Path
-from app.services.document_parser import DocumentParser, DocumentChunk
+
+from app.services.document_parser import DocumentParser
 
 
 class TestStructureAwareChunking(unittest.TestCase):

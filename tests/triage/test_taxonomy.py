@@ -5,7 +5,8 @@ They define the contract that taxonomy.py must satisfy.
 """
 
 import pytest
-from app.triage.taxonomy import RAGFailureType, STAGES, by_stage
+
+from app.triage.taxonomy import STAGES, RAGFailureType, by_stage
 
 
 class TestStages:

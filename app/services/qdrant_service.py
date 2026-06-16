@@ -3,29 +3,26 @@ Qdrant service for vector database operations with hybrid search support.
 Uses AsyncQdrantClient for concurrent operations.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
-import asyncio
 import os
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
+from loguru import logger
 from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.models import (
     Distance,
-    VectorParams,
-    SparseVectorParams,
-    SparseIndexParams,
-    PointStruct,
     Filter,
-    FieldCondition,
-    MatchValue,
     Modifier,
+    PointStruct,
+    SparseIndexParams,
+    SparseVectorParams,
+    VectorParams,
 )
-from loguru import logger
 
 from app.config import get_settings
 from app.services.embeddings import EmbeddingService
-from app.utils.async_helpers import chunks, ProgressTracker
+from app.utils.async_helpers import ProgressTracker, chunks
 
 
 class QdrantService:

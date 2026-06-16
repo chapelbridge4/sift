@@ -4,6 +4,7 @@ Prevents path traversal / arbitrary file read: every ingestion path must
 resolve to a real file located inside the configured corpus root.
 """
 from __future__ import annotations
+
 from pathlib import Path
 
 

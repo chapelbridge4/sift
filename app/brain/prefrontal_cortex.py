@@ -8,13 +8,14 @@ Inspired by the prefrontal cortex brain region responsible for:
 - Goal-directed behavior
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from loguru import logger
 
-from app.services.llm_service import LLMService
-from app.brain.hippocampus import Hippocampus
 from app.brain.amygdala import Amygdala
+from app.brain.hippocampus import Hippocampus
 from app.brain.working_memory import WorkingMemory
+from app.services.llm_service import LLMService
 
 
 class PrefrontalCortex:

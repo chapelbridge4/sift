@@ -2,6 +2,7 @@
 
 import threading
 from pathlib import Path
+
 from app.config import get_settings
 
 _settings = get_settings()

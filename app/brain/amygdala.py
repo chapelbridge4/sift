@@ -8,9 +8,10 @@ Inspired by the amygdala brain region responsible for:
 - Modulation of memory consolidation
 """
 
-from typing import List, Dict, Any
-from datetime import datetime, timedelta
 import math
+from datetime import datetime
+from typing import Any, Dict, List
+
 import psutil
 from loguru import logger
 

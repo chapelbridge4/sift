@@ -4,8 +4,8 @@ Provides heading-aware, code-block-preserving chunking with rich metadata.
 """
 
 import re
-from typing import List, Dict, Any, Tuple, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple
 
 
 @dataclass

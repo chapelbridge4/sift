@@ -3,24 +3,21 @@ Document parsing service for multiple file formats.
 Supports PDF, TXT, DOC, DOCX, XLS, XLSX with async batch processing.
 """
 
-import os
 import hashlib
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-import PyPDF2
-import fitz  # PyMuPDF
-from docx import Document
-import openpyxl
 import chardet
+import fitz  # PyMuPDF
+import openpyxl
+import PyPDF2
+from docx import Document
 from loguru import logger
 
 from app.config import get_settings
-from app.utils.async_helpers import AsyncBatchProcessor, chunks
 from app.services.text_splitter import MarkdownChunker
+from app.utils.async_helpers import AsyncBatchProcessor
 
 
 class DocumentChunk:

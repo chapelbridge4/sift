@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Optional
 
 from app.config import get_settings
-from app.core.kv_manager import KVManager
-
 
 # Module-level engine cache (singleton per profile)
 _engines = {}

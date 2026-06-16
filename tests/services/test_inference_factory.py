@@ -1,5 +1,7 @@
 import pytest
-from app.services.inference import get_inference_backend, InferenceBackend
+
+from app.services.inference import get_inference_backend
+
 
 def test_factory_returns_gguf_by_default(monkeypatch):
     monkeypatch.setenv("INFERENCE_BACKEND", "gguf")

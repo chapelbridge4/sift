@@ -1,9 +1,9 @@
 """Services package for Brain-inspired RAG system."""
 
-from .document_parser import DocumentParser, DocumentChunk
+from .document_parser import DocumentChunk, DocumentParser
 from .embeddings import EmbeddingService
-from .qdrant_service import QdrantService
 from .llm_service import LLMService
+from .qdrant_service import QdrantService
 
 __all__ = [
     "DocumentParser",

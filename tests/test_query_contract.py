@@ -10,7 +10,8 @@ Tests the following acceptance criteria:
 import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.models.schemas import FusionMethod, ModelProfile, QueryRequest
+
+from app.models.schemas import FusionMethod, QueryRequest
 
 
 class TestFusionMethodThreading(unittest.TestCase):
@@ -108,8 +109,8 @@ class TestModelProfileIsolation(unittest.TestCase):
     @patch('app.services.llm_service.ModelManager')
     def test_get_model_for_request_does_not_persist(self, mock_manager_class):
         """Calling get_model_for_request should not modify self.model_name."""
-        from app.services.llm_service import LLMService
         from app.config import get_settings
+        from app.services.llm_service import LLMService
 
         settings = get_settings()
         service = LLMService()
@@ -130,8 +131,8 @@ class TestModelProfileIsolation(unittest.TestCase):
     @patch('app.services.llm_service.ModelManager')
     def test_generate_rag_response_uses_request_model(self, mock_manager_class, mock_ensure_model):
         """generate_rag_response should use request-scoped model without persistence."""
-        from app.services.llm_service import LLMService
         from app.config import get_settings
+        from app.services.llm_service import LLMService
 
         settings = get_settings()
         service = LLMService()

@@ -2,8 +2,9 @@
 Diagnostics for memory / latency / token measurement on M1 8GB.
 """
 
-import psutil
 import os
+
+import psutil
 from loguru import logger
 
 

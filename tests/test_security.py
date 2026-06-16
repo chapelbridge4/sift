@@ -1,6 +1,7 @@
-from pathlib import Path
 import pytest
-from app.security import resolve_safe_paths, UnsafePathError
+
+from app.security import UnsafePathError, resolve_safe_paths
+
 
 def test_accepts_path_inside_root(tmp_path):
     root = tmp_path / "corpus"; root.mkdir()

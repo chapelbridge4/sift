@@ -5,8 +5,8 @@ after implementation.  No model loading, no network, no I/O.
 """
 
 import pytest
-from app.triage.signals import QueryTrace, Signals, compute_signals
 
+from app.triage.signals import QueryTrace, compute_signals
 
 # ---------------------------------------------------------------------------
 # Helpers

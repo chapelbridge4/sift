@@ -20,7 +20,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # ---------------------------------------------------------------------------
 # Data containers
 # ---------------------------------------------------------------------------
@@ -182,7 +181,10 @@ def _answer_quality(answer: str | None) -> tuple[bool, bool]:
         return False, False
 
     try:
-        from app.tuning.quality import detect_garbage, is_valid_response  # noqa: PLC0415
+        from app.tuning.quality import (  # noqa: PLC0415
+            detect_garbage,
+            is_valid_response,
+        )
         valid, _reason = is_valid_response(answer)
         quality_ok = valid and not detect_garbage(answer)
     except ImportError:

@@ -248,7 +248,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"matrix_{args.stamp}.jsonl"
 
-    print(f"\n=== Quant × Hardware × Quality Matrix ===")
+    print("\n=== Quant × Hardware × Quality Matrix ===")
     print(f"Model: {model_path}")
     print(f"n_ctx: {args.n_ctx}")
     print(f"Stamp: {args.stamp}")

@@ -1,8 +1,9 @@
-import pytest
 import os
 import tempfile
-from app.config_manager import ConfigManager
+
 from app.config import Settings
+from app.config_manager import ConfigManager
+
 
 def test_config_manager_initializes_db():
     """ConfigManager creates DB and schema on first run."""

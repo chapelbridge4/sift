@@ -1,5 +1,3 @@
-import pytest
-from unittest.mock import MagicMock
 
 
 def test_generate_uses_skip_special_tokens():

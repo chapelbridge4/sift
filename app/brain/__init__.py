@@ -1,7 +1,7 @@
 """Brain modules package - Neural-inspired RAG architecture."""
 
-from .hippocampus import Hippocampus
 from .amygdala import Amygdala
+from .hippocampus import Hippocampus
 from .prefrontal_cortex import PrefrontalCortex
 from .working_memory import WorkingMemory
 

@@ -9,14 +9,15 @@ Tests:
 
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
+
 from tests.benchmark_fixtures import (
-    get_benchmark_documents,
-    get_benchmark_queries,
-    export_fixtures_as_texts,
-    export_fixtures_as_metadata,
     BenchmarkDocument,
     BenchmarkQuery,
+    export_fixtures_as_metadata,
+    export_fixtures_as_texts,
+    get_benchmark_documents,
+    get_benchmark_queries,
 )
 
 
@@ -160,8 +161,9 @@ class TestConfigurationPassing(unittest.TestCase):
 
     def test_model_profile_arg_respected(self):
         """Test that --model-profile argument is passed to reasoning."""
-        from scripts.run_benchmark import parse_args
         import sys
+
+        from scripts.run_benchmark import parse_args
         old_argv = sys.argv
         try:
             sys.argv = ['run_benchmark.py', '--model-profile', 'quality']
@@ -173,8 +175,9 @@ class TestConfigurationPassing(unittest.TestCase):
 
     def test_fusion_method_arg_respected(self):
         """Test that --fusion-method argument is passed to reasoning."""
-        from scripts.run_benchmark import parse_args
         import sys
+
+        from scripts.run_benchmark import parse_args
         old_argv = sys.argv
         try:
             sys.argv = ['run_benchmark.py', '--fusion-method', 'dbsf']
@@ -186,8 +189,9 @@ class TestConfigurationPassing(unittest.TestCase):
 
     def test_sparse_strategy_arg_respected(self):
         """Test that --sparse-strategy argument is passed correctly."""
-        from scripts.run_benchmark import parse_args
         import sys
+
+        from scripts.run_benchmark import parse_args
         old_argv = sys.argv
         try:
             sys.argv = ['run_benchmark.py', '--sparse-strategy', 'bm25plus']
@@ -199,8 +203,9 @@ class TestConfigurationPassing(unittest.TestCase):
 
     def test_default_values_are_sensible(self):
         """Test that default values for model_profile, fusion_method, and sparse_strategy are sensible."""
-        from scripts.run_benchmark import parse_args
         import sys
+
+        from scripts.run_benchmark import parse_args
         old_argv = sys.argv
         try:
             sys.argv = ['run_benchmark.py']
@@ -221,7 +226,8 @@ class TestBenchmarkRunner(unittest.TestCase):
     def test_run_benchmark_uses_lazy_brain_loader(self):
         """Test that run_benchmark resolves the brain class lazily at runtime."""
         from argparse import Namespace
-        from scripts.run_benchmark import run_benchmark, QueryResult, StageTiming
+
+        from scripts.run_benchmark import QueryResult, StageTiming, run_benchmark
         from tests.benchmark_fixtures import BenchmarkQuery
 
         fake_query = BenchmarkQuery(

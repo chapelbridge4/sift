@@ -8,10 +8,11 @@ Inspired by the working memory system responsible for:
 - Active manipulation of information
 """
 
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-from collections import defaultdict, deque
 import uuid
+from collections import defaultdict, deque
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from loguru import logger
 
 from app.config import get_settings
