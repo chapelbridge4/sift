@@ -14,6 +14,8 @@ On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, emb
 .venv/bin/python scripts/demo.py
 ```
 
+First run fetches the ~90 MB fastembed embedder once; subsequent runs are fully offline. No multi-GB LLM or GGUF is ever pulled.
+
 Expected output (real run — no fabrication):
 
 ```
@@ -57,7 +59,7 @@ sift — local-first RAG with per-query failure triage
     evidence      : recall_hit is False: no gold document was retrieved in the top-k candidates.
 
 ============================================================
-Done — no model download, no Docker, no cloud.  Time to add your corpus.
+Done — no LLM download, no Docker, no cloud.  Time to add your corpus.
 ============================================================
 ```
 

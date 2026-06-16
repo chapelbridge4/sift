@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Zero-config local demo for sift — retrieval + per-query failure triage.
 
-No Docker, no model download, no cloud account.  Runs in seconds.
+No Docker, no LLM download, no cloud account.  Runs in seconds.
+The ~90 MB fastembed embedder downloads once on first use; no multi-GB GGUF/LLM is ever pulled.
 
 What it does
 ------------
 1. Loads the three sample documents from ``examples/corpus/``.
 2. Embeds and indexes them into an in-memory Qdrant collection using
-   fastembed MiniLM-L6 (already cached by the benchmarks; no download).
+   fastembed MiniLM-L6 (~90 MB, fetched once on first use; no LLM/GGUF pulled).
 3. Runs a retrieval query and prints the top matching chunk.
 4. Constructs a ``QueryTrace`` for a deliberately FAILING query — one whose
    gold document is intentionally absent from this small corpus — and prints
@@ -193,7 +194,7 @@ async def _run_demo() -> None:
     print(f"    evidence      : {verdict.evidence}")
 
     print("\n" + "=" * 60)
-    print("Done — no model download, no Docker, no cloud.  Time to add your corpus.")
+    print("Done — no LLM download, no Docker, no cloud.  Time to add your corpus.")
     print("=" * 60)
 
 
