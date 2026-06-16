@@ -4,7 +4,7 @@
 
 Most RAG tooling assumes a cloud LLM and a single tenant, and tells you *that* a query failed but not *why*. **sift** runs the full loop — retrieval, generation, evaluation, and **per-query failure triage** — **offline on an 8 GB laptop**, with no cloud account and no Docker required. Inference uses GGUF/llama.cpp (Windows, Linux, macOS, CPU-capable); Apple-Silicon MLX is an optional fast-path.
 
-On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, embedded Qdrant) retrieves at **recall@10 = 0.816** — 100 queries, ~20 ms/query, 5,183-doc corpus — measured against ground-truth relevance judgments, not keyword matching. Generation with Qwen3-4B (Q4_K_M) runs at **~19 tok/s, ~2.9 GB RSS** on an Apple M1 (8 GB). Full numbers and the quant × KV-cache matrix: [BENCHMARKS.md](BENCHMARKS.md).
+On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, embedded Qdrant) retrieves at **recall@10 = 0.774** — full 300-query test set, ~16 ms/query, 5,183-doc corpus — measured against ground-truth relevance judgments, not keyword matching. Generation with Qwen3-4B (Q4_K_M) runs at **~19 tok/s, ~2.9 GB RSS** on an Apple M1 (8 GB). Full numbers and the quant × KV-cache matrix: [BENCHMARKS.md](BENCHMARKS.md).
 
 > Research/prototype service — no built-in authentication; the ingestion endpoint accepts server-local file paths. Keep it on trusted local networks unless you add auth and deployment hardening.
 
