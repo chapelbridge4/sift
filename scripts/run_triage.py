@@ -109,15 +109,23 @@ def _build_reranker(top_k: int):
     from app.brain.amygdala import Amygdala
 
     reranker = Amygdala()
-    reranker.settings.RERANK_ENABLED = True
-    reranker.settings.RERANK_TOP_K = top_k
-    reranker.settings.DIVERSIFY_SOURCES = False
-    # On an 8 GB box the in-memory SciFact index leaves ~1.3 GB free, just under
-    # the default RERANK_MIN_AVAILABLE_GB (1.5) guard, which would silently skip
-    # the cross-encoder. The reranker itself is tiny (~80 MB ms-marco-MiniLM-L-6),
-    # so for this single-process offline eval we lower the per-instance guard to
-    # let it actually run. This override is local to the triage runner only.
-    reranker.settings.RERANK_MIN_AVAILABLE_GB = 0.8
+    # Route every override through a per-instance copy (model_copy) so the shared
+    # global Settings singleton is never mutated — mutating reranker.settings in
+    # place would leak process-wide (latent bug if this runner is ever imported
+    # into a server). The cross-encoder reads these at rerank time off the copy.
+    #
+    # RERANK_MIN_AVAILABLE_GB is lowered from the default 1.5: on an 8 GB box the
+    # in-memory SciFact index leaves ~1.3 GB free, which would silently trip the
+    # guard and skip the cross-encoder. The reranker is tiny (~80 MB
+    # ms-marco-MiniLM-L-6), so for this single-process offline eval we let it run.
+    reranker.settings = reranker.settings.model_copy(
+        update={
+            "RERANK_ENABLED": True,
+            "RERANK_TOP_K": top_k,
+            "DIVERSIFY_SOURCES": False,
+            "RERANK_MIN_AVAILABLE_GB": 0.8,
+        }
+    )
     return reranker
 
 
