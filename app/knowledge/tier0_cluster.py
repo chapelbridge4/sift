@@ -109,8 +109,9 @@ def extract_claim_spans(parsed_doc: ParsedDoc, profile: KnowledgeProfile) -> lis
 def cluster_spans(
     spans: list[ClaimSpan],
     *,
-    embedder: Any,
+    embedder: Any | None = None,
     profile: KnowledgeProfile,
+    vectors: list[list[float]] | None = None,
 ) -> ClusterManifest:
     """Embed claim spans and cluster them with agglomerative (cosine) grouping."""
     if not spans:
@@ -122,7 +123,10 @@ def cluster_spans(
 
     from sklearn.cluster import AgglomerativeClustering
 
-    vectors = embedder.embed_texts([s.text for s in spans])
+    if vectors is None:
+        if embedder is None:
+            raise ValueError("cluster_spans requires embedder or precomputed vectors")
+        vectors = embedder.embed_texts([s.text for s in spans])
     n_clusters = min(
         tier0.max_clusters,
         len(spans) // tier0.min_cluster_size,

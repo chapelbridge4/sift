@@ -5,6 +5,7 @@ Supports PDF, TXT, DOC, DOCX, XLS, XLSX with async batch processing.
 
 import hashlib
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -18,6 +19,28 @@ from loguru import logger
 from app.config import get_settings
 from app.services.text_splitter import MarkdownChunker
 from app.utils.async_helpers import AsyncBatchProcessor
+
+
+@dataclass
+class KnowledgeSection:
+    name: str
+    text: str
+
+
+@dataclass
+class KnowledgeParsedDoc:
+    paper_id: str
+    source_file: str
+    title: str = ""
+    authors: list[str] = field(default_factory=list)
+    sections: list[KnowledgeSection] = field(default_factory=list)
+
+
+_SECTION_HEADER_RE = re.compile(
+    r"^\s*(Abstract|Introduction|Background|Related\s+Work|Methods?|Methodology|"
+    r"Experiments?|Results?|Discussion|Conclusion|Limitations|References)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 class DocumentChunk:
@@ -77,6 +100,79 @@ class DocumentParser:
 
         logger.info(f"Parsed {len(flattened_chunks)} total chunks from {len(file_paths)} files")
         return flattened_chunks
+
+    async def parse_for_knowledge(self, file_paths: List[str]) -> List[KnowledgeParsedDoc]:
+        """Parse files into sectioned documents for the knowledge pipeline."""
+        logger.info("Parsing {} files for knowledge pipeline", len(file_paths))
+        results = await self.batch_processor.process_in_batches(
+            items=file_paths,
+            process_func=self._parse_knowledge_file_sync,
+            use_threads=True,
+        )
+        docs: list[KnowledgeParsedDoc] = []
+        for item in results:
+            if item:
+                docs.append(item)
+        logger.info("Knowledge parse produced {} documents", len(docs))
+        return docs
+
+    def _parse_knowledge_file_sync(self, file_path: str) -> Optional[KnowledgeParsedDoc]:
+        """Parse one file into a KnowledgeParsedDoc; None on failure (skip paper)."""
+        try:
+            file_path_obj = Path(file_path)
+            if not file_path_obj.exists():
+                logger.warning("Knowledge parse skip — file not found: {}", file_path_obj.name)
+                return None
+
+            extension = file_path_obj.suffix.lower()
+            if extension == ".pdf":
+                text = self._parse_pdf(file_path)
+            elif extension == ".txt":
+                text = self._parse_txt(file_path)
+            elif extension in [".doc", ".docx"]:
+                text = self._parse_docx(file_path)
+            elif extension in [".xls", ".xlsx"]:
+                text = self._parse_excel(file_path)
+            else:
+                logger.warning("Knowledge parse skip — unsupported format: {}", extension)
+                return None
+
+            if not text or not text.strip():
+                logger.warning("Knowledge parse skip — no text: {}", file_path_obj.name)
+                return None
+
+            paper_id = self._generate_document_id(file_path_obj)
+            sections = self._split_knowledge_sections(text)
+            return KnowledgeParsedDoc(
+                paper_id=paper_id,
+                source_file=str(file_path),
+                title=file_path_obj.stem.replace("_", " "),
+                authors=[],
+                sections=sections,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Knowledge parse skip — {}: {}",
+                Path(file_path).name,
+                type(exc).__name__,
+            )
+            return None
+
+    def _split_knowledge_sections(self, text: str) -> List[KnowledgeSection]:
+        """Split full document text into named sections using common headings."""
+        matches = list(_SECTION_HEADER_RE.finditer(text))
+        if not matches:
+            return [KnowledgeSection(name="body", text=text.strip())]
+
+        sections: list[KnowledgeSection] = []
+        for idx, match in enumerate(matches):
+            name = match.group(1).strip()
+            start = match.end()
+            end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+            body = text[start:end].strip()
+            if body:
+                sections.append(KnowledgeSection(name=name, text=body))
+        return sections or [KnowledgeSection(name="body", text=text.strip())]
 
     def _parse_single_file_sync(self, file_path: str) -> List[DocumentChunk]:
         """
