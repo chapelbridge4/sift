@@ -38,6 +38,9 @@ data/corpus/.knowledge/
 datasets/
 
 # Local agent/editor state
+agent_collab/
+grok_sal/
+grok_sal.md
 AGENTS.md
 .agents/
 .claude/
