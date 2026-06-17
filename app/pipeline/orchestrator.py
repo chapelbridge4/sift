@@ -8,14 +8,21 @@ Responsible for:
 - Deciding what retrieved context to use
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
 
 from app.pipeline.conversation_memory import ConversationMemory
 from app.pipeline.document_store import DocumentStore
 from app.pipeline.reranker import Reranker
-from app.services.llm_service import LLMService
+from app.services.inference import RagBackend, get_inference_backend
+
+# Methods a backend must provide to drive the profile-based RAG path. Mirrors the
+# RagBackend Protocol (the static contract) but is checked explicitly at runtime,
+# because isinstance() against a runtime_checkable Protocol rejects test doubles
+# like MagicMock — this check accepts real backends and injected mocks alike, and
+# still rejects GGUFService (which lacks chat / get_model_for_request).
+RAG_BACKEND_METHODS = ("generate_rag_response", "generate", "chat", "get_model_for_request")
 
 
 class RagOrchestrator:
@@ -29,16 +36,31 @@ class RagOrchestrator:
     - Decision making about what information to use
     """
 
-    def __init__(self):
-        # The RAG path uses the MLX LLMService directly because it is
-        # model-profile aware (get_model_for_request / chat / generate_rag_response).
-        # GGUF via get_inference_backend() is for direct/experimental callers and
-        # is NOT wired into the profile-based RAG path (GGUFService lacks the
-        # profile methods). MLX is the supported RAG backend (INFERENCE_BACKEND default).
-        self.llm_service = LLMService()
-        self.document_store = DocumentStore()
-        self.reranker = Reranker()
-        self.conversation_memory = ConversationMemory()
+    def __init__(
+        self,
+        llm_service: Optional[RagBackend] = None,
+        document_store: Optional[DocumentStore] = None,
+        reranker: Optional[Reranker] = None,
+        conversation_memory: Optional[ConversationMemory] = None,
+    ):
+        # Dependencies are injected for testability and resolved from config by
+        # default — never hardcoded. The inference backend is selected by
+        # INFERENCE_BACKEND (default 'mlx'); MLX is the supported RAG backend.
+        backend = llm_service or get_inference_backend()
+        # Fail fast if the backend can't drive the profile-based RAG path.
+        missing = [m for m in RAG_BACKEND_METHODS if not callable(getattr(backend, m, None))]
+        if missing:
+            raise TypeError(
+                f"Inference backend {type(backend).__name__} cannot drive the RAG "
+                f"orchestrator: missing {missing}. The profile-based RAG path requires "
+                f"the MLX backend (INFERENCE_BACKEND=mlx); GGUF currently supports "
+                f"direct generate/generate_rag_response only."
+            )
+        # Runtime contract verified above, so narrow the static type for callers.
+        self.llm_service = cast(RagBackend, backend)
+        self.document_store = document_store or DocumentStore()
+        self.reranker = reranker or Reranker()
+        self.conversation_memory = conversation_memory or ConversationMemory()
         logger.info("RagOrchestrator module initialized")
 
     async def initialize(self):

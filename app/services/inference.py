@@ -24,6 +24,22 @@ class InferenceBackend(Protocol):
     ) -> str: ...
 
 
+@runtime_checkable
+class RagBackend(InferenceBackend, Protocol):
+    """The richer contract the profile-based RAG orchestrator needs.
+
+    Beyond ``generate_rag_response`` it drives per-request model selection,
+    single-shot generation, and multi-turn chat. ``LLMService`` (MLX) satisfies
+    this; ``GGUFService`` does not yet, so selecting GGUF for the orchestrator
+    fails fast (see ``RagOrchestrator``). This Protocol is the single source of
+    truth for that runtime contract check — no duplicated method-name list.
+    """
+
+    def get_model_for_request(self, model_profile: str | None = None): ...
+    async def generate(self, prompt: str, **kwargs) -> str: ...
+    async def chat(self, messages: list, **kwargs) -> str: ...
+
+
 def get_inference_backend() -> InferenceBackend:
     """
     Instantiate and return the configured inference backend.

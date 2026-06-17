@@ -5,6 +5,7 @@ Tests the following acceptance criteria:
 - use_llm=false returns retrieved documents without calling generation
 - model_profile selection is request-scoped, not sticky shared state
 - Response is valid when no documents are retrieved and use_llm=false
+- the inference backend is injected/config-resolved, never hardcoded
 """
 
 import asyncio
@@ -33,18 +34,50 @@ class TestFusionMethodThreading(unittest.TestCase):
         self.assertEqual(request.fusion_method.value, "dbsf")
 
 
+class TestBackendInjection(unittest.TestCase):
+    """RagOrchestrator resolves its inference backend via DI/config, not hardcoding."""
+
+    def test_injected_backend_is_used(self):
+        """A backend passed to the constructor is the one the orchestrator uses."""
+        from app.pipeline.orchestrator import RagOrchestrator
+
+        backend = MagicMock()  # satisfies the full RagBackend method surface
+        with patch('app.pipeline.orchestrator.DocumentStore'), \
+             patch('app.pipeline.orchestrator.Reranker'), \
+             patch('app.pipeline.orchestrator.ConversationMemory'):
+            pfc = RagOrchestrator(llm_service=backend)
+
+        self.assertIs(pfc.llm_service, backend)
+
+    def test_incomplete_backend_fails_fast(self):
+        """A backend missing chat/get_model_for_request is rejected at construction."""
+        from app.pipeline.orchestrator import RagOrchestrator
+
+        class PartialBackend:
+            async def generate_rag_response(self, *a, **k):
+                return ""
+
+            async def generate(self, *a, **k):
+                return ""
+
+        with patch('app.pipeline.orchestrator.DocumentStore'), \
+             patch('app.pipeline.orchestrator.Reranker'), \
+             patch('app.pipeline.orchestrator.ConversationMemory'):
+            with self.assertRaises(TypeError):
+                RagOrchestrator(llm_service=PartialBackend())
+
+
 class TestUseLlmFalsePath(unittest.TestCase):
     """Test that use_llm=false returns retrieved documents without generation."""
 
     @patch('app.pipeline.orchestrator.DocumentStore')
     @patch('app.pipeline.orchestrator.Reranker')
     @patch('app.pipeline.orchestrator.ConversationMemory')
-    @patch('app.pipeline.orchestrator.LLMService')
-    def test_use_llm_false_returns_docs_without_generation(self, mock_llm, mock_wm, mock_reranker, mock_document_store):
+    def test_use_llm_false_returns_docs_without_generation(self, mock_wm, mock_reranker, mock_document_store):
         """When use_llm=False, retrieval-only path should return documents without LLM calls."""
         from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = RagOrchestrator()
+        pfc = RagOrchestrator(llm_service=AsyncMock())
         pfc.document_store = AsyncMock()
         pfc.reranker = MagicMock()
         pfc.conversation_memory = AsyncMock()
@@ -75,12 +108,11 @@ class TestUseLlmFalsePath(unittest.TestCase):
     @patch('app.pipeline.orchestrator.DocumentStore')
     @patch('app.pipeline.orchestrator.Reranker')
     @patch('app.pipeline.orchestrator.ConversationMemory')
-    @patch('app.pipeline.orchestrator.LLMService')
-    def test_use_llm_false_empty_docs(self, mock_llm, mock_wm, mock_reranker, mock_document_store):
+    def test_use_llm_false_empty_docs(self, mock_wm, mock_reranker, mock_document_store):
         """When use_llm=False and no docs retrieved, response should be valid."""
         from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = RagOrchestrator()
+        pfc = RagOrchestrator(llm_service=AsyncMock())
         pfc.document_store = AsyncMock()
         pfc.reranker = MagicMock()
         pfc.conversation_memory = AsyncMock()
@@ -109,10 +141,8 @@ class TestModelProfileIsolation(unittest.TestCase):
     @patch('app.services.llm_service.ModelManager')
     def test_get_model_for_request_does_not_persist(self, mock_manager_class):
         """Calling get_model_for_request should not modify self.model_name."""
-        from app.config import get_settings
         from app.services.llm_service import LLMService
 
-        settings = get_settings()
         service = LLMService()
         service.model_manager = MagicMock()
         service.model_manager.get_model_for_profile = MagicMock(return_value="qwen2.5:1.5b")
@@ -131,10 +161,8 @@ class TestModelProfileIsolation(unittest.TestCase):
     @patch('app.services.llm_service.ModelManager')
     def test_generate_rag_response_uses_request_model(self, mock_manager_class, mock_ensure_model):
         """generate_rag_response should use request-scoped model without persistence."""
-        from app.config import get_settings
         from app.services.llm_service import LLMService
 
-        settings = get_settings()
         service = LLMService()
         service.client = AsyncMock()
         service.initialize = AsyncMock()
@@ -170,12 +198,11 @@ class TestModelUsedReporting(unittest.TestCase):
     @patch('app.pipeline.orchestrator.DocumentStore')
     @patch('app.pipeline.orchestrator.Reranker')
     @patch('app.pipeline.orchestrator.ConversationMemory')
-    @patch('app.pipeline.orchestrator.LLMService')
-    def test_model_used_reports_request_scoped_model(self, mock_llm_class, mock_wm, mock_reranker, mock_document_store):
+    def test_model_used_reports_request_scoped_model(self, mock_wm, mock_reranker, mock_document_store):
         """When model_profile='quality', model_used should report quality model not default."""
         from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = RagOrchestrator()
+        pfc = RagOrchestrator(llm_service=AsyncMock())
         pfc.document_store = AsyncMock()
         pfc.reranker = MagicMock()
         pfc.conversation_memory = AsyncMock()
@@ -208,12 +235,11 @@ class TestNoContextModelProfile(unittest.TestCase):
     @patch('app.pipeline.orchestrator.DocumentStore')
     @patch('app.pipeline.orchestrator.Reranker')
     @patch('app.pipeline.orchestrator.ConversationMemory')
-    @patch('app.pipeline.orchestrator.LLMService')
-    def test_no_context_generation_uses_model_profile(self, mock_llm_class, mock_wm, mock_reranker, mock_document_store):
+    def test_no_context_generation_uses_model_profile(self, mock_wm, mock_reranker, mock_document_store):
         """When no docs retrieved and model_profile specified, generation uses that profile."""
         from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = RagOrchestrator()
+        pfc = RagOrchestrator(llm_service=AsyncMock())
         pfc.document_store = AsyncMock()
         pfc.reranker = MagicMock()
         pfc.conversation_memory = AsyncMock()
@@ -243,12 +269,11 @@ class TestNoContextModelProfile(unittest.TestCase):
     @patch('app.pipeline.orchestrator.DocumentStore')
     @patch('app.pipeline.orchestrator.Reranker')
     @patch('app.pipeline.orchestrator.ConversationMemory')
-    @patch('app.pipeline.orchestrator.LLMService')
-    def test_no_context_with_conversation_history_uses_model_profile(self, mock_llm_class, mock_wm, mock_reranker, mock_document_store):
+    def test_no_context_with_conversation_history_uses_model_profile(self, mock_wm, mock_reranker, mock_document_store):
         """When no docs but has conversation history, chat uses model_profile."""
         from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = RagOrchestrator()
+        pfc = RagOrchestrator(llm_service=AsyncMock())
         pfc.document_store = AsyncMock()
         pfc.reranker = MagicMock()
         pfc.conversation_memory = AsyncMock()
@@ -291,5 +316,4 @@ class TestRetrievalMethodReporting(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    import asyncio
     unittest.main()
