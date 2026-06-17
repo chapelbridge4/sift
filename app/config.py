@@ -37,11 +37,12 @@ class Settings(BaseSettings):
     DEFAULT_COLLECTION_NAME: str = "brain_rag_collection"
     DENSE_VECTOR_SIZE: int = 384
 
-    # Inference backend — 'gguf' uses llama-cpp-python (Metal), 'mlx' uses MLX-VLM
-    # 'gguf' is the cross-platform default; 'mlx' requires Apple Silicon + MLX stack.
+    # Inference backend — 'mlx' uses MLX-VLM (Apple Silicon), 'gguf' uses llama-cpp-python.
+    # 'mlx' is the default because the profile-based RAG path (RagOrchestrator)
+    # uses LLMService/MLX directly; 'gguf' is available for direct/experimental callers.
     INFERENCE_BACKEND: str = Field(
-        default="gguf",
-        description="Inference backend: 'gguf' (llama-cpp-python) or 'mlx' (MLX-VLM)"
+        default="mlx",
+        description="Inference backend: 'mlx' (MLX-VLM, default) or 'gguf' (llama-cpp-python)"
     )
 
     # GGUF backend configuration

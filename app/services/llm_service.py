@@ -245,6 +245,25 @@ class LLMService:
         return self.model_name
 
     @staticmethod
+    def _passes_validity(text: str, enable_thinking: bool) -> tuple[bool, str]:
+        """Decide whether a generated answer is acceptable.
+
+        Non-thinking responses use the strict gate unchanged. Thinking responses
+        may be short after the reasoning block is sanitized away, so we accept any
+        NON-EMPTY thinking answer (reason "too_short_but_accepted") while still
+        rejecting truly empty output or special-token garbage.
+        """
+        valid, reason = _quality.is_valid_response(text)
+        if valid or not enable_thinking:
+            return valid, reason
+        # Thinking path: salvage short-but-non-empty answers.
+        if not text.strip():
+            return False, "too_short"
+        if reason == "special_token_leak":
+            return False, reason
+        return True, "too_short_but_accepted"
+
+    @staticmethod
     def _sanitize_output(text: str) -> str:
         import re
         text = re.sub(r"Thinking Process:.*?(?=\n\n|\Z)", "", text, flags=re.DOTALL)
@@ -560,9 +579,15 @@ class LLMService:
             text = result.text if hasattr(result, 'text') else str(result)
             text = self._sanitize_qwen_output(text)
             text = LLMService._sanitize_output(text)
-            valid, reason = _quality.is_valid_response(text)
+            valid, reason = self._passes_validity(text, enable_thinking)
             if not valid:
                 raise ValueError(f"Invalid model output: {reason}")
+            if enable_thinking and reason == "too_short_but_accepted":
+                logger.warning(
+                    "Thinking response was short after sanitizing the reasoning "
+                    "block; accepting the non-empty answer "
+                    f"({len(text.strip())} chars)."
+                )
             logger.debug(f"Generated chat response: {len(text)} characters")
             return text
 

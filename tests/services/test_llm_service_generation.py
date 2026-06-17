@@ -18,6 +18,28 @@ import concurrent.futures
 from app.services.llm_service import LLMService
 
 
+def test_validity_gate_strict_when_not_thinking():
+    """enable_thinking=False keeps the strict gate: a too-short answer is
+    rejected exactly as is_valid_response decides."""
+    valid, reason = LLMService._passes_validity("ok", enable_thinking=False)
+    assert valid is False
+    assert reason == "too_short"
+
+
+def test_validity_gate_accepts_short_thinking_answer():
+    """enable_thinking=True: a short-but-NON-EMPTY answer is accepted even if
+    the strict gate would call it too_short (thinking ate the token budget)."""
+    valid, reason = LLMService._passes_validity("Yes.", enable_thinking=True)
+    assert valid is True
+
+
+def test_validity_gate_rejects_empty_thinking_answer():
+    """enable_thinking=True: a truly empty answer is still rejected."""
+    valid, reason = LLMService._passes_validity("   ", enable_thinking=True)
+    assert valid is False
+    assert reason == "too_short"
+
+
 def test_rag_system_prompt_has_no_no_think_prefix():
     """Bug A: the system prompt built for a Qwen model must not start with
     the '/no_think' hack. Uses the pure builder seam so no model is loaded."""

@@ -30,6 +30,11 @@ class RagOrchestrator:
     """
 
     def __init__(self):
+        # The RAG path uses the MLX LLMService directly because it is
+        # model-profile aware (get_model_for_request / chat / generate_rag_response).
+        # GGUF via get_inference_backend() is for direct/experimental callers and
+        # is NOT wired into the profile-based RAG path (GGUFService lacks the
+        # profile methods). MLX is the supported RAG backend (INFERENCE_BACKEND default).
         self.llm_service = LLMService()
         self.document_store = DocumentStore()
         self.reranker = Reranker()
