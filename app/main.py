@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.config import get_settings
+from app.knowledge.degraded import KnowledgeHardwareError
 from app.models.schemas import (
     CollectionCreate,
     CollectionDelete,
@@ -217,7 +218,10 @@ async def upload_files(request: UploadFilesRequest):
         result = await brain.document_store.form_memories(
             collection_name=request.collection_name,
             file_paths=safe_paths,
-            batch_size=request.batch_size or 32
+            batch_size=request.batch_size or 32,
+            make_knowledge=request.make_knowledge,
+            knowledge_profile=request.knowledge_profile,
+            knowledge_model=request.knowledge_model,
         )
 
         processing_time = time.time() - start_time
@@ -232,15 +236,24 @@ async def upload_files(request: UploadFilesRequest):
                 message=result.get("message", "Failed to process files")
             )
 
+        knowledge_stats = result.get("knowledge")
         return UploadFilesResponse(
             collection_name=request.collection_name,
             processed_files=result.get("processed_files", len(request.file_paths)),
             total_chunks=result.get("total_chunks", 0),
             failed_files=[],
             processing_time_seconds=processing_time,
-            message=f"Successfully indexed {result['total_chunks']} chunks"
+            message=result.get("message", f"Successfully indexed {result['total_chunks']} chunks"),
+            knowledge=knowledge_stats,
+            knowledge_built=bool(result.get("knowledge_built", False)),
         )
 
+    except KnowledgeHardwareError as e:
+        logger.warning(f"Knowledge ingest blocked by hardware guard: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
     except HTTPException:
         raise
     except Exception as e:
