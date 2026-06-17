@@ -1,11 +1,11 @@
 """
-Amygdala module - Emotional importance and priority scoring.
+Reranker module - Importance and priority scoring.
 
-Inspired by the amygdala brain region responsible for:
-- Emotional processing and valence
+Responsible for:
+- Cross-encoder reranking of retrieved documents
 - Salience detection (what's important)
-- Priority assignment to memories
-- Modulation of memory consolidation
+- Priority assignment to documents
+- Recency and relevance weighting
 """
 
 import math
@@ -26,9 +26,9 @@ except ImportError:
     CrossEncoder = None
 
 
-class Amygdala:
+class Reranker:
     """
-    Amygdala module for importance and priority scoring.
+    Reranker module for importance and priority scoring.
 
     This module handles:
     - Importance scoring of retrieved documents
@@ -43,7 +43,7 @@ class Amygdala:
         self.relevance_weight = self.settings.RELEVANCE_WEIGHT
         self.importance_weight = self.settings.IMPORTANCE_WEIGHT
         self._cross_encoder = None
-        logger.info("Amygdala module initialized")
+        logger.info("Reranker module initialized")
 
     def calculate_importance_score(
         self,
@@ -83,7 +83,7 @@ class Amygdala:
         )
 
         logger.debug(
-            f"Amygdala: Importance score={importance_score:.3f} "
+            f"Reranker: Importance score={importance_score:.3f} "
             f"(relevance={relevance_score:.3f}, recency={recency_score:.3f}, "
             f"base={base_importance:.3f})"
         )
@@ -108,7 +108,7 @@ class Amygdala:
             return self._cross_encoder
 
         if not TRANSFORMERS_AVAILABLE:
-            logger.warning("Amygdala: transformers not available, skipping reranker")
+            logger.warning("Reranker: transformers not available, skipping reranker")
             return None
 
         # Memory guard: check available RAM before loading
@@ -116,18 +116,18 @@ class Amygdala:
         available_gb = psutil.virtual_memory().available / (1024 ** 3)
         if available_gb < min_gb:
             logger.warning(
-                f"Amygdala: only {available_gb:.1f}GB free (< {min_gb}GB), skipping cross-encoder to preserve RAM"
+                f"Reranker: only {available_gb:.1f}GB free (< {min_gb}GB), skipping cross-encoder to preserve RAM"
             )
             return None
 
         try:
             model_name = self.settings.RERANK_MODEL
-            logger.info(f"Amygdala: Loading cross-encoder {model_name}")
+            logger.info(f"Reranker: Loading cross-encoder {model_name}")
             self._cross_encoder = CrossEncoder(model_name)
-            logger.info("Amygdala: Cross-encoder loaded successfully")
+            logger.info("Reranker: Cross-encoder loaded successfully")
             return self._cross_encoder
         except Exception as e:
-            logger.warning(f"Amygdala: Failed to load cross-encoder: {e}")
+            logger.warning(f"Reranker: Failed to load cross-encoder: {e}")
             return None
 
     def _jaccard_similarity(self, text_a: str, text_b: str) -> float:
@@ -157,7 +157,7 @@ class Amygdala:
                 if self._jaccard_similarity(kept_doc.get('text', ''), text) > threshold:
                     is_duplicate = True
                     logger.debug(
-                        f"Amygdala: Deduping chunk (Jaccard={self._jaccard_similarity(kept_doc.get('text', ''), text):.2f})"
+                        f"Reranker: Deduping chunk (Jaccard={self._jaccard_similarity(kept_doc.get('text', ''), text):.2f})"
                     )
                     break
             if not is_duplicate:
@@ -231,7 +231,7 @@ class Amygdala:
             return recency_score
 
         except (ValueError, TypeError) as e:
-            logger.warning(f"Amygdala: Error parsing timestamp: {str(e)}")
+            logger.warning(f"Reranker: Error parsing timestamp: {str(e)}")
             return 0.5
 
     def rerank(
@@ -252,7 +252,7 @@ class Amygdala:
             Reranked documents (top_k after reranking)
         """
         if not self.settings.RERANK_ENABLED:
-            logger.debug("Amygdala: Reranking disabled, returning initial results")
+            logger.debug("Reranker: Reranking disabled, returning initial results")
             return documents[:self.settings.RERANK_TOP_K]
 
         if len(documents) == 0:
@@ -260,7 +260,7 @@ class Amygdala:
 
         cross_encoder = self._load_cross_encoder()
         if cross_encoder is None:
-            logger.info("Amygdala: Reranker unavailable, returning initial results")
+            logger.info("Reranker: Reranker unavailable, returning initial results")
             return documents[:self.settings.RERANK_TOP_K]
 
         # Take top initial_top_k for reranking
@@ -272,7 +272,7 @@ class Amygdala:
         try:
             scores = cross_encoder.predict(pairs)
         except Exception as e:
-            logger.warning(f"Amygdala: Cross-encoder prediction failed: {e}")
+            logger.warning(f"Reranker: Cross-encoder prediction failed: {e}")
             return documents[:self.settings.RERANK_TOP_K]
 
         # Attach cross-encoder scores and re-sort
@@ -294,7 +294,7 @@ class Amygdala:
         if self.settings.DIVERSIFY_SOURCES:
             result = self._diversify_sources(result, target_unique=3)
 
-        logger.info(f"Amygdala: Reranked {len(candidates)} to {len(result)} documents")
+        logger.info(f"Reranker: Reranked {len(candidates)} to {len(result)} documents")
         return result
 
     def rank_by_importance(
@@ -312,7 +312,7 @@ class Amygdala:
         Returns:
             Documents sorted by importance (highest first)
         """
-        logger.info(f"Amygdala: Ranking {len(documents)} documents by importance")
+        logger.info(f"Reranker: Ranking {len(documents)} documents by importance")
 
         current_time = datetime.utcnow()
 
@@ -344,7 +344,7 @@ class Amygdala:
         )
 
         logger.info(
-            f"Amygdala: Documents ranked. "
+            f"Reranker: Documents ranked. "
             f"Top score: {ranked_documents[0]['importance_score']:.3f}, "
             f"Bottom score: {ranked_documents[-1]['importance_score']:.3f}"
         )
@@ -372,7 +372,7 @@ class Amygdala:
         ]
 
         logger.info(
-            f"Amygdala: Filtered {len(documents)} documents to {len(filtered)} "
+            f"Reranker: Filtered {len(documents)} documents to {len(filtered)} "
             f"with threshold {threshold}"
         )
 
@@ -447,7 +447,7 @@ class Amygdala:
             if any(keyword.lower() in text for keyword in boost_keywords):
                 new_importance = min(importance * boost_factor, 1.0)
                 logger.debug(
-                    f"Amygdala: Emotional boost applied. "
+                    f"Reranker: Emotional boost applied. "
                     f"Score: {importance:.3f} -> {new_importance:.3f}"
                 )
                 doc['importance_score'] = new_importance

@@ -206,7 +206,7 @@ class Settings(BaseSettings):
     DENSE_WEIGHT: float = 0.5
     SPARSE_WEIGHT: float = 0.5
 
-    # Brain Module Weights (Amygdala importance scoring)
+    # Reranker importance-scoring weights
     RECENCY_WEIGHT: float = Field(default=0.3, ge=0.0, le=1.0)
     RELEVANCE_WEIGHT: float = Field(default=0.5, ge=0.0, le=1.0)
     IMPORTANCE_WEIGHT: float = Field(default=0.2, ge=0.0, le=1.0)

@@ -36,26 +36,26 @@ class TestFusionMethodThreading(unittest.TestCase):
 class TestUseLlmFalsePath(unittest.TestCase):
     """Test that use_llm=false returns retrieved documents without generation."""
 
-    @patch('app.brain.prefrontal_cortex.Hippocampus')
-    @patch('app.brain.prefrontal_cortex.Amygdala')
-    @patch('app.brain.prefrontal_cortex.WorkingMemory')
-    @patch('app.brain.prefrontal_cortex.LLMService')
-    def test_use_llm_false_returns_docs_without_generation(self, mock_llm, mock_wm, mock_amygdala, mock_hippocampus):
+    @patch('app.pipeline.orchestrator.DocumentStore')
+    @patch('app.pipeline.orchestrator.Reranker')
+    @patch('app.pipeline.orchestrator.ConversationMemory')
+    @patch('app.pipeline.orchestrator.LLMService')
+    def test_use_llm_false_returns_docs_without_generation(self, mock_llm, mock_wm, mock_reranker, mock_document_store):
         """When use_llm=False, retrieval-only path should return documents without LLM calls."""
-        from app.brain.prefrontal_cortex import PrefrontalCortex
+        from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = PrefrontalCortex()
-        pfc.hippocampus = AsyncMock()
-        pfc.amygdala = MagicMock()
-        pfc.working_memory = AsyncMock()
+        pfc = RagOrchestrator()
+        pfc.document_store = AsyncMock()
+        pfc.reranker = MagicMock()
+        pfc.conversation_memory = AsyncMock()
         pfc.llm_service = AsyncMock()
 
         mock_docs = [
             {"text": "doc1", "score": 0.9, "metadata": {}},
             {"text": "doc2", "score": 0.8, "metadata": {}}
         ]
-        pfc.hippocampus.recall_memories = AsyncMock(return_value=mock_docs)
-        pfc.amygdala.rank_by_importance = MagicMock(return_value=mock_docs)
+        pfc.document_store.recall_memories = AsyncMock(return_value=mock_docs)
+        pfc.reranker.rank_by_importance = MagicMock(return_value=mock_docs)
 
         async def run_test():
             return await pfc.reason_with_context(
@@ -72,21 +72,21 @@ class TestUseLlmFalsePath(unittest.TestCase):
         self.assertIsNone(result["model_used"])
         pfc.llm_service.generate_rag_response.assert_not_called()
 
-    @patch('app.brain.prefrontal_cortex.Hippocampus')
-    @patch('app.brain.prefrontal_cortex.Amygdala')
-    @patch('app.brain.prefrontal_cortex.WorkingMemory')
-    @patch('app.brain.prefrontal_cortex.LLMService')
-    def test_use_llm_false_empty_docs(self, mock_llm, mock_wm, mock_amygdala, mock_hippocampus):
+    @patch('app.pipeline.orchestrator.DocumentStore')
+    @patch('app.pipeline.orchestrator.Reranker')
+    @patch('app.pipeline.orchestrator.ConversationMemory')
+    @patch('app.pipeline.orchestrator.LLMService')
+    def test_use_llm_false_empty_docs(self, mock_llm, mock_wm, mock_reranker, mock_document_store):
         """When use_llm=False and no docs retrieved, response should be valid."""
-        from app.brain.prefrontal_cortex import PrefrontalCortex
+        from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = PrefrontalCortex()
-        pfc.hippocampus = AsyncMock()
-        pfc.amygdala = MagicMock()
-        pfc.working_memory = AsyncMock()
+        pfc = RagOrchestrator()
+        pfc.document_store = AsyncMock()
+        pfc.reranker = MagicMock()
+        pfc.conversation_memory = AsyncMock()
         pfc.llm_service = AsyncMock()
 
-        pfc.hippocampus.recall_memories = AsyncMock(return_value=[])
+        pfc.document_store.recall_memories = AsyncMock(return_value=[])
 
         async def run_test():
             return await pfc.reason_with_context(
@@ -167,23 +167,23 @@ class TestModelProfileIsolation(unittest.TestCase):
 class TestModelUsedReporting(unittest.TestCase):
     """Test that model_used reports the actual request-scoped model."""
 
-    @patch('app.brain.prefrontal_cortex.Hippocampus')
-    @patch('app.brain.prefrontal_cortex.Amygdala')
-    @patch('app.brain.prefrontal_cortex.WorkingMemory')
-    @patch('app.brain.prefrontal_cortex.LLMService')
-    def test_model_used_reports_request_scoped_model(self, mock_llm_class, mock_wm, mock_amygdala, mock_hippocampus):
+    @patch('app.pipeline.orchestrator.DocumentStore')
+    @patch('app.pipeline.orchestrator.Reranker')
+    @patch('app.pipeline.orchestrator.ConversationMemory')
+    @patch('app.pipeline.orchestrator.LLMService')
+    def test_model_used_reports_request_scoped_model(self, mock_llm_class, mock_wm, mock_reranker, mock_document_store):
         """When model_profile='quality', model_used should report quality model not default."""
-        from app.brain.prefrontal_cortex import PrefrontalCortex
+        from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = PrefrontalCortex()
-        pfc.hippocampus = AsyncMock()
-        pfc.amygdala = MagicMock()
-        pfc.working_memory = AsyncMock()
+        pfc = RagOrchestrator()
+        pfc.document_store = AsyncMock()
+        pfc.reranker = MagicMock()
+        pfc.conversation_memory = AsyncMock()
         pfc.llm_service = AsyncMock()
 
         mock_docs = [{"text": "doc1", "score": 0.9, "metadata": {}}]
-        pfc.hippocampus.recall_memories = AsyncMock(return_value=mock_docs)
-        pfc.amygdala.rank_by_importance = MagicMock(return_value=mock_docs)
+        pfc.document_store.recall_memories = AsyncMock(return_value=mock_docs)
+        pfc.reranker.rank_by_importance = MagicMock(return_value=mock_docs)
 
         pfc.llm_service.get_model_for_request = MagicMock(return_value=("quality_model", {"temperature": 0.7}))
         pfc.llm_service.generate_rag_response = AsyncMock(return_value="Test answer")
@@ -205,21 +205,21 @@ class TestModelUsedReporting(unittest.TestCase):
 class TestNoContextModelProfile(unittest.TestCase):
     """Test that no-results branch honors model_profile."""
 
-    @patch('app.brain.prefrontal_cortex.Hippocampus')
-    @patch('app.brain.prefrontal_cortex.Amygdala')
-    @patch('app.brain.prefrontal_cortex.WorkingMemory')
-    @patch('app.brain.prefrontal_cortex.LLMService')
-    def test_no_context_generation_uses_model_profile(self, mock_llm_class, mock_wm, mock_amygdala, mock_hippocampus):
+    @patch('app.pipeline.orchestrator.DocumentStore')
+    @patch('app.pipeline.orchestrator.Reranker')
+    @patch('app.pipeline.orchestrator.ConversationMemory')
+    @patch('app.pipeline.orchestrator.LLMService')
+    def test_no_context_generation_uses_model_profile(self, mock_llm_class, mock_wm, mock_reranker, mock_document_store):
         """When no docs retrieved and model_profile specified, generation uses that profile."""
-        from app.brain.prefrontal_cortex import PrefrontalCortex
+        from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = PrefrontalCortex()
-        pfc.hippocampus = AsyncMock()
-        pfc.amygdala = MagicMock()
-        pfc.working_memory = AsyncMock()
+        pfc = RagOrchestrator()
+        pfc.document_store = AsyncMock()
+        pfc.reranker = MagicMock()
+        pfc.conversation_memory = AsyncMock()
         pfc.llm_service = AsyncMock()
 
-        pfc.hippocampus.recall_memories = AsyncMock(return_value=[])
+        pfc.document_store.recall_memories = AsyncMock(return_value=[])
         pfc.llm_service.get_model_for_request = MagicMock(return_value=("quality_model", {"temperature": 0.7}))
         pfc.llm_service.generate = AsyncMock(return_value="No context answer")
 
@@ -240,24 +240,24 @@ class TestNoContextModelProfile(unittest.TestCase):
         call_kwargs = pfc.llm_service.generate.call_args.kwargs
         self.assertEqual(call_kwargs["model_name"], "quality_model")
 
-    @patch('app.brain.prefrontal_cortex.Hippocampus')
-    @patch('app.brain.prefrontal_cortex.Amygdala')
-    @patch('app.brain.prefrontal_cortex.WorkingMemory')
-    @patch('app.brain.prefrontal_cortex.LLMService')
-    def test_no_context_with_conversation_history_uses_model_profile(self, mock_llm_class, mock_wm, mock_amygdala, mock_hippocampus):
+    @patch('app.pipeline.orchestrator.DocumentStore')
+    @patch('app.pipeline.orchestrator.Reranker')
+    @patch('app.pipeline.orchestrator.ConversationMemory')
+    @patch('app.pipeline.orchestrator.LLMService')
+    def test_no_context_with_conversation_history_uses_model_profile(self, mock_llm_class, mock_wm, mock_reranker, mock_document_store):
         """When no docs but has conversation history, chat uses model_profile."""
-        from app.brain.prefrontal_cortex import PrefrontalCortex
+        from app.pipeline.orchestrator import RagOrchestrator
 
-        pfc = PrefrontalCortex()
-        pfc.hippocampus = AsyncMock()
-        pfc.amygdala = MagicMock()
-        pfc.working_memory = AsyncMock()
+        pfc = RagOrchestrator()
+        pfc.document_store = AsyncMock()
+        pfc.reranker = MagicMock()
+        pfc.conversation_memory = AsyncMock()
         pfc.llm_service = AsyncMock()
 
-        pfc.hippocampus.recall_memories = AsyncMock(return_value=[])
+        pfc.document_store.recall_memories = AsyncMock(return_value=[])
         pfc.llm_service.get_model_for_request = MagicMock(return_value=("fast_model", {"temperature": 0.5}))
         pfc.llm_service.chat = AsyncMock(return_value="Chat answer")
-        pfc.working_memory.get_conversation_history = AsyncMock(return_value=[{"role": "user", "content": "Hello"}])
+        pfc.conversation_memory.get_conversation_history = AsyncMock(return_value=[{"role": "user", "content": "Hello"}])
 
         async def run_test():
             return await pfc.reason_with_context(

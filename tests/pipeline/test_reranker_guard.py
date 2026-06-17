@@ -1,5 +1,5 @@
 """
-Tests for Amygdala._load_cross_encoder memory guard.
+Tests for Reranker._load_cross_encoder memory guard.
 
 The guard must skip the cross-encoder when available RAM is below
 RERANK_MIN_AVAILABLE_GB, and load it when RAM is sufficient.
@@ -21,14 +21,14 @@ def test_cross_encoder_loads_when_ram_is_high():
     mock_ce_class = MagicMock(return_value=mock_ce_instance)
 
     with (
-        patch("app.brain.amygdala.psutil.virtual_memory", return_value=_make_vmem(4.0)),
-        patch("app.brain.amygdala.TRANSFORMERS_AVAILABLE", True),
-        patch("app.brain.amygdala.CrossEncoder", mock_ce_class),
+        patch("app.pipeline.reranker.psutil.virtual_memory", return_value=_make_vmem(4.0)),
+        patch("app.pipeline.reranker.TRANSFORMERS_AVAILABLE", True),
+        patch("app.pipeline.reranker.CrossEncoder", mock_ce_class),
     ):
-        from app.brain.amygdala import Amygdala
+        from app.pipeline.reranker import Reranker
 
-        amygdala = Amygdala()
-        result = amygdala._load_cross_encoder()
+        reranker = Reranker()
+        result = reranker._load_cross_encoder()
 
     assert result is mock_ce_instance, (
         f"Expected cross-encoder instance, got {result!r}"
@@ -41,14 +41,14 @@ def test_cross_encoder_skipped_when_ram_is_low():
     mock_ce_class = MagicMock()
 
     with (
-        patch("app.brain.amygdala.psutil.virtual_memory", return_value=_make_vmem(0.5)),
-        patch("app.brain.amygdala.TRANSFORMERS_AVAILABLE", True),
-        patch("app.brain.amygdala.CrossEncoder", mock_ce_class),
+        patch("app.pipeline.reranker.psutil.virtual_memory", return_value=_make_vmem(0.5)),
+        patch("app.pipeline.reranker.TRANSFORMERS_AVAILABLE", True),
+        patch("app.pipeline.reranker.CrossEncoder", mock_ce_class),
     ):
-        from app.brain.amygdala import Amygdala
+        from app.pipeline.reranker import Reranker
 
-        amygdala = Amygdala()
-        result = amygdala._load_cross_encoder()
+        reranker = Reranker()
+        result = reranker._load_cross_encoder()
 
     assert result is None, (
         f"Expected None when RAM is low, got {result!r}"
@@ -61,19 +61,19 @@ def test_cross_encoder_respects_custom_min_gb():
     mock_ce_class = MagicMock()
 
     with (
-        patch("app.brain.amygdala.psutil.virtual_memory", return_value=_make_vmem(3.0)),
-        patch("app.brain.amygdala.TRANSFORMERS_AVAILABLE", True),
-        patch("app.brain.amygdala.CrossEncoder", mock_ce_class),
+        patch("app.pipeline.reranker.psutil.virtual_memory", return_value=_make_vmem(3.0)),
+        patch("app.pipeline.reranker.TRANSFORMERS_AVAILABLE", True),
+        patch("app.pipeline.reranker.CrossEncoder", mock_ce_class),
     ):
-        from app.brain.amygdala import Amygdala
+        from app.pipeline.reranker import Reranker
 
-        amygdala = Amygdala()
+        reranker = Reranker()
         # Override the setting on the instance directly
-        amygdala.settings = MagicMock()
-        amygdala.settings.RERANK_MIN_AVAILABLE_GB = 4.0
-        amygdala.settings.RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        reranker.settings = MagicMock()
+        reranker.settings.RERANK_MIN_AVAILABLE_GB = 4.0
+        reranker.settings.RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-        result = amygdala._load_cross_encoder()
+        result = reranker._load_cross_encoder()
 
     assert result is None, (
         f"Expected None when available (3GB) < min_gb (4GB), got {result!r}"

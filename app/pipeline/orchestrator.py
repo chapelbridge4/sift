@@ -1,26 +1,26 @@
 """
-Prefrontal Cortex module - Executive function and reasoning.
+RagOrchestrator module - RAG pipeline orchestration.
 
-Inspired by the prefrontal cortex brain region responsible for:
-- Executive function and decision making
-- Integration of information from multiple sources
-- Complex reasoning and planning
-- Goal-directed behavior
+Responsible for:
+- Orchestrating the full retrieval-augmented generation pipeline
+- Integrating information from multiple pipeline stages
+- Driving reasoning and response generation with the LLM
+- Deciding what retrieved context to use
 """
 
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from app.brain.amygdala import Amygdala
-from app.brain.hippocampus import Hippocampus
-from app.brain.working_memory import WorkingMemory
+from app.pipeline.conversation_memory import ConversationMemory
+from app.pipeline.document_store import DocumentStore
+from app.pipeline.reranker import Reranker
 from app.services.llm_service import LLMService
 
 
-class PrefrontalCortex:
+class RagOrchestrator:
     """
-    Prefrontal Cortex module for executive control and reasoning.
+    RagOrchestrator module for executive control and reasoning.
 
     This module handles:
     - Orchestration of RAG pipeline
@@ -31,15 +31,15 @@ class PrefrontalCortex:
 
     def __init__(self):
         self.llm_service = LLMService()
-        self.hippocampus = Hippocampus()
-        self.amygdala = Amygdala()
-        self.working_memory = WorkingMemory()
-        logger.info("Prefrontal Cortex module initialized")
+        self.document_store = DocumentStore()
+        self.reranker = Reranker()
+        self.conversation_memory = ConversationMemory()
+        logger.info("RagOrchestrator module initialized")
 
     async def initialize(self):
-        """Initialize the prefrontal cortex and its subsystems."""
-        await self.hippocampus.initialize()
-        logger.info("Prefrontal Cortex executive systems online")
+        """Initialize the orchestrator and its pipeline stages."""
+        await self.document_store.initialize()
+        logger.info("RagOrchestrator executive systems online")
 
     async def reason_with_context(
         self,
@@ -57,10 +57,10 @@ class PrefrontalCortex:
         Perform complex reasoning using retrieved context (executive function).
 
         This orchestrates the full RAG pipeline:
-        1. Retrieve relevant memories (Hippocampus)
-        2. Rank by importance (Amygdala)
-        3. Integrate with working memory context
-        4. Generate reasoned response (PFC)
+        1. Retrieve relevant documents (DocumentStore)
+        2. Rank by importance (Reranker)
+        3. Integrate with conversation memory context
+        4. Generate reasoned response (LLM)
 
         Args:
             query: User query
@@ -74,12 +74,12 @@ class PrefrontalCortex:
         Returns:
             Dictionary with answer and metadata including model_used
         """
-        logger.info(f"PFC: Beginning reasoning process for query_length={len(query)}")
+        logger.info(f"Orchestrator: Beginning reasoning process for query_length={len(query)}")
 
         try:
-            # Step 1: Retrieve relevant memories (Hippocampus recall)
-            logger.debug("PFC: Step 1 - Retrieving memories from Hippocampus")
-            retrieved_memories = await self.hippocampus.recall_memories(
+            # Step 1: Retrieve relevant documents (DocumentStore recall)
+            logger.debug("Orchestrator: Step 1 - Retrieving documents from DocumentStore")
+            retrieved_memories = await self.document_store.recall_memories(
                 collection_name=collection_name,
                 query=query,
                 top_k=top_k,
@@ -87,10 +87,10 @@ class PrefrontalCortex:
                 fusion_method=fusion_method
             )
 
-            # Step 2: Evaluate importance and rank (Amygdala processing)
+            # Step 2: Evaluate importance and rank (Reranker processing)
             if retrieved_memories:
-                logger.debug("PFC: Step 2 - Evaluating importance with Amygdala")
-                ranked_memories = self.amygdala.rank_by_importance(
+                logger.debug("Orchestrator: Step 2 - Evaluating importance with Reranker")
+                ranked_memories = self.reranker.rank_by_importance(
                     retrieved_memories,
                     query
                 )
@@ -99,7 +99,7 @@ class PrefrontalCortex:
 
             # Step 3: Check if LLM generation is needed
             if not use_llm:
-                logger.info("PFC: use_llm=False, returning retrieved documents without generation")
+                logger.info("Orchestrator: use_llm=False, returning retrieved documents without generation")
                 return {
                     "answer": None,
                     "retrieved_documents": ranked_memories,
@@ -108,22 +108,22 @@ class PrefrontalCortex:
                     "model_used": None
                 }
 
-            # Step 4: Get conversation context (Working Memory)
+            # Step 4: Get conversation context (Conversation Memory)
             if not ranked_memories:
-                logger.warning("PFC: No memories retrieved, generating response without context")
+                logger.warning("Orchestrator: No memories retrieved, generating response without context")
                 return await self._generate_response_without_context(
                     query, conversation_id, temperature, model_profile
                 )
 
-            logger.debug("PFC: Step 4 - Retrieving conversation context from Working Memory")
+            logger.debug("Orchestrator: Step 4 - Retrieving conversation context from Conversation Memory")
             conversation_history = None
             if conversation_id:
-                conversation_history = await self.working_memory.get_conversation_history(
+                conversation_history = await self.conversation_memory.get_conversation_history(
                     conversation_id
                 )
 
             # Step 5: Integrate information and reason (Executive function)
-            logger.debug("PFC: Step 5 - Integrating information and reasoning")
+            logger.debug("Orchestrator: Step 5 - Integrating information and reasoning")
             answer, model_used = await self._integrate_and_reason(
                 query=query,
                 ranked_memories=ranked_memories,
@@ -132,18 +132,18 @@ class PrefrontalCortex:
                 model_profile=model_profile
             )
 
-            # Step 5: Update working memory
+            # Step 6: Update conversation memory
             if conversation_id:
-                await self.working_memory.add_message(
+                await self.conversation_memory.add_message(
                     conversation_id,
                     {"role": "user", "content": query}
                 )
-                await self.working_memory.add_message(
+                await self.conversation_memory.add_message(
                     conversation_id,
                     {"role": "assistant", "content": answer}
                 )
 
-            logger.info(f"PFC: Reasoning complete with model '{model_used}'")
+            logger.info(f"Orchestrator: Reasoning complete with model '{model_used}'")
 
             return {
                 "answer": answer,
@@ -154,7 +154,7 @@ class PrefrontalCortex:
             }
 
         except Exception as e:
-            logger.error(f"PFC: Error during reasoning: {str(e)}")
+            logger.error(f"Orchestrator: Error during reasoning: {str(e)}")
             raise
 
     async def _integrate_and_reason(
@@ -170,8 +170,8 @@ class PrefrontalCortex:
 
         Args:
             query: User query
-            ranked_memories: Ranked documents from Amygdala
-            conversation_history: Conversation history from Working Memory
+            ranked_memories: Ranked documents from Reranker
+            conversation_history: Conversation history from Conversation Memory
             temperature: LLM temperature
             model_profile: Model profile to use
 
@@ -217,11 +217,11 @@ class PrefrontalCortex:
         Returns:
             Response dictionary
         """
-        logger.info("PFC: Generating response without retrieved context")
+        logger.info("Orchestrator: Generating response without retrieved context")
 
         conversation_history = None
         if conversation_id:
-            conversation_history = await self.working_memory.get_conversation_history(
+            conversation_history = await self.conversation_memory.get_conversation_history(
                 conversation_id
             )
 
@@ -275,7 +275,7 @@ class PrefrontalCortex:
         Returns:
             Decision result with reasoning
         """
-        logger.info(f"PFC: Making decision between {len(options)} options")
+        logger.info(f"Orchestrator: Making decision between {len(options)} options")
 
         decision_prompt = f"""Given the following options and criteria, make a decision.
 
@@ -301,7 +301,7 @@ Provide your decision with clear reasoning."""
             }
 
         except Exception as e:
-            logger.error(f"PFC: Error making decision: {str(e)}")
+            logger.error(f"Orchestrator: Error making decision: {str(e)}")
             raise
 
     async def plan_task(
@@ -319,7 +319,7 @@ Provide your decision with clear reasoning."""
         Returns:
             Task plan with steps
         """
-        logger.info(f"PFC: Planning task with description_length={len(task_description)}")
+        logger.info(f"Orchestrator: Planning task with description_length={len(task_description)}")
 
         constraints_str = ""
         if constraints:
@@ -345,7 +345,7 @@ Provide a step-by-step plan with clear actions."""
             }
 
         except Exception as e:
-            logger.error(f"PFC: Error planning task: {str(e)}")
+            logger.error(f"Orchestrator: Error planning task: {str(e)}")
             raise
 
     async def evaluate_response_quality(
@@ -365,7 +365,7 @@ Provide a step-by-step plan with clear actions."""
         Returns:
             Evaluation results
         """
-        logger.info("PFC: Evaluating response quality (meta-cognition)")
+        logger.info("Orchestrator: Evaluating response quality (meta-cognition)")
 
         criteria_str = ""
         if expected_criteria:
@@ -394,5 +394,5 @@ Rate each aspect on a scale of 1-10."""
             }
 
         except Exception as e:
-            logger.error(f"PFC: Error evaluating response: {str(e)}")
+            logger.error(f"Orchestrator: Error evaluating response: {str(e)}")
             raise

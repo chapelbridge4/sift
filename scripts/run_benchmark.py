@@ -30,7 +30,7 @@ from tests.benchmark_fixtures import (
 )
 
 if TYPE_CHECKING:
-    from app.brain import PrefrontalCortex
+    from app.pipeline import RagOrchestrator
 
 
 @dataclass
@@ -117,24 +117,24 @@ def print_table_separator(widths: List[int]) -> None:
     print("+" + "+".join("-" * (w + 2) for w in widths) + "+")
 
 
-def load_prefrontal_cortex_class():
+def load_orchestrator_class():
     """Load the heavy runtime dependency only when the benchmark actually runs."""
-    from app.brain import PrefrontalCortex
+    from app.pipeline import RagOrchestrator
 
-    return PrefrontalCortex
+    return RagOrchestrator
 
 
-async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> bool:
+async def setup_collection(brain: RagOrchestrator, collection_name: str) -> bool:
     """Create collection and index benchmark fixtures."""
     print(f"\n[1/4] Setting up collection '{collection_name}'...")
     start = time.time()
 
-    exists = await brain.hippocampus.memory_exists(collection_name)
+    exists = await brain.document_store.memory_exists(collection_name)
     if exists:
         print("  Collection exists, deleting first...")
-        await brain.hippocampus.forget_memories(collection_name)
+        await brain.document_store.forget_memories(collection_name)
 
-    success = await brain.hippocampus.create_memory_space(collection_name)
+    success = await brain.document_store.create_memory_space(collection_name)
     if not success:
         print("  ERROR: Failed to create collection")
         return False
@@ -142,7 +142,7 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
     documents = export_fixtures_as_texts()
     metadata = export_fixtures_as_metadata()
 
-    result = await brain.hippocampus.form_memories(
+    result = await brain.document_store.form_memories(
         collection_name=collection_name,
         file_paths=[]  # We'll inject directly
     )
@@ -152,7 +152,7 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
 
     from app.utils.async_helpers import chunks
 
-    embedding_service = brain.hippocampus.qdrant_service.embedding_service
+    embedding_service = brain.document_store.qdrant_service.embedding_service
     total_indexed = 0
 
     for batch_texts, batch_metadatas in zip(chunks(texts, 32), chunks(metadatas, 32)):
@@ -179,7 +179,7 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
                 payload={"text": text, **meta}
             ))
 
-        await brain.hippocampus.qdrant_service.client.upsert(
+        await brain.document_store.qdrant_service.client.upsert(
             collection_name=collection_name,
             points=points,
             wait=True
@@ -192,7 +192,7 @@ async def setup_collection(brain: PrefrontalCortex, collection_name: str) -> boo
 
 
 async def run_query(
-    brain: PrefrontalCortex,
+    brain: RagOrchestrator,
     collection_name: str,
     query: str,
     question_type: str,
@@ -252,10 +252,10 @@ async def run_query(
     )
 
 
-async def cleanup_collection(brain: PrefrontalCortex, collection_name: str) -> None:
+async def cleanup_collection(brain: RagOrchestrator, collection_name: str) -> None:
     """Clean up benchmark collection."""
     try:
-        await brain.hippocampus.forget_memories(collection_name)
+        await brain.document_store.forget_memories(collection_name)
     except Exception:
         pass
 
@@ -268,7 +268,7 @@ async def run_benchmark(args: argparse.Namespace) -> BenchmarkReport:
     print(f"Sparse strategy: {args.sparse_strategy}")
     print(f"Top-K: {args.top_k}")
 
-    brain_class = load_prefrontal_cortex_class()
+    brain_class = load_orchestrator_class()
     brain = brain_class()
     await brain.initialize()
 

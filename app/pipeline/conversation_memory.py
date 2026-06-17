@@ -1,11 +1,10 @@
 """
-Working Memory module - Temporary contextual buffer.
+Conversation Memory module - Temporary contextual buffer.
 
-Inspired by the working memory system responsible for:
-- Temporary storage of information during cognitive tasks
+Responsible for:
 - Maintaining conversation context
-- Short-term information buffer
-- Active manipulation of information
+- Short-term conversation history buffering
+- Context window management
 """
 
 import uuid
@@ -19,9 +18,9 @@ from app.config import get_settings
 from app.models.schemas import WorkingMemoryContext
 
 
-class WorkingMemory:
+class ConversationMemory:
     """
-    Working Memory module for temporary context storage.
+    Conversation Memory module for temporary context storage.
 
     This module handles:
     - Conversation history management
@@ -41,7 +40,7 @@ class WorkingMemory:
         )
         self.metadata: Dict[str, Dict[str, Any]] = {}
 
-        logger.info("Working Memory module initialized")
+        logger.info("Conversation Memory module initialized")
 
     async def create_conversation(self, conversation_id: Optional[str] = None) -> str:
         """
@@ -63,7 +62,7 @@ class WorkingMemory:
                 "last_accessed": datetime.utcnow().isoformat(),
                 "message_count": 0
             }
-            logger.info(f"Working Memory: Created conversation {conversation_id}")
+            logger.info(f"Conversation Memory: Created conversation {conversation_id}")
 
         return conversation_id
 
@@ -97,7 +96,7 @@ class WorkingMemory:
         self.metadata[conversation_id]["message_count"] += 1
 
         logger.debug(
-            f"Working Memory: Added message to conversation {conversation_id}. "
+            f"Conversation Memory: Added message to conversation {conversation_id}. "
             f"Total messages: {len(self.conversations[conversation_id])}"
         )
 
@@ -117,7 +116,7 @@ class WorkingMemory:
             List of messages
         """
         if conversation_id not in self.conversations:
-            logger.warning(f"Working Memory: Conversation {conversation_id} not found")
+            logger.warning(f"Conversation Memory: Conversation {conversation_id} not found")
             return []
 
         # Update last accessed time
@@ -159,7 +158,7 @@ class WorkingMemory:
         recent_messages = all_messages[-num_messages:] if num_messages > 0 else all_messages
 
         logger.debug(
-            f"Working Memory: Retrieved {len(recent_messages)} recent messages "
+            f"Conversation Memory: Retrieved {len(recent_messages)} recent messages "
             f"from conversation {conversation_id}"
         )
 
@@ -179,7 +178,7 @@ class WorkingMemory:
         if conversation_id in self.conversations:
             del self.conversations[conversation_id]
             del self.metadata[conversation_id]
-            logger.info(f"Working Memory: Cleared conversation {conversation_id}")
+            logger.info(f"Conversation Memory: Cleared conversation {conversation_id}")
 
     async def get_conversation_summary(self, conversation_id: str) -> Dict[str, Any]:
         """
@@ -228,7 +227,7 @@ class WorkingMemory:
             Summary text or None
         """
         if conversation_id not in self.conversations:
-            logger.warning(f"Working Memory: Cannot consolidate, conversation {conversation_id} not found")
+            logger.warning(f"Conversation Memory: Cannot consolidate, conversation {conversation_id} not found")
             return None
 
         messages = await self.get_conversation_history(conversation_id)
@@ -236,7 +235,7 @@ class WorkingMemory:
         if not messages:
             return None
 
-        logger.info(f"Working Memory: Consolidating conversation {conversation_id} to summary")
+        logger.info(f"Conversation Memory: Consolidating conversation {conversation_id} to summary")
 
         if llm_service:
             # Generate summary using LLM
@@ -259,7 +258,7 @@ Summary:"""
                 )
                 return summary
             except Exception as e:
-                logger.error(f"Working Memory: Error generating summary: {str(e)}")
+                logger.error(f"Conversation Memory: Error generating summary: {str(e)}")
                 return None
         else:
             # Simple text-based summary
@@ -294,10 +293,10 @@ Summary:"""
 
         for conv_id in conversations_to_remove:
             await self.clear_conversation(conv_id)
-            logger.info(f"Working Memory: Pruned old conversation {conv_id}")
+            logger.info(f"Conversation Memory: Pruned old conversation {conv_id}")
 
         if conversations_to_remove:
-            logger.info(f"Working Memory: Pruned {len(conversations_to_remove)} old conversations")
+            logger.info(f"Conversation Memory: Pruned {len(conversations_to_remove)} old conversations")
 
     def get_buffer_usage(self) -> Dict[str, Any]:
         """

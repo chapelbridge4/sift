@@ -1,10 +1,10 @@
 """
-Hippocampus module - Memory indexing and retrieval.
+DocumentStore module - Document indexing and retrieval.
 
-Inspired by the hippocampus brain region responsible for:
-- Formation of new memories (indexing documents)
-- Storage and retrieval of long-term memories (vector search)
-- Spatial navigation and context (semantic search)
+Responsible for:
+- Indexing documents into the vector store
+- Vector-based retrieval (dense and hybrid search)
+- Collection lifecycle management
 """
 
 from typing import Any, Dict, List, Optional
@@ -15,9 +15,9 @@ from app.services.document_parser import DocumentParser
 from app.services.qdrant_service import QdrantService
 
 
-class Hippocampus:
+class DocumentStore:
     """
-    Hippocampus module for memory indexing and retrieval.
+    DocumentStore module for memory indexing and retrieval.
 
     This module handles:
     - Document indexing (memory formation)
@@ -28,12 +28,12 @@ class Hippocampus:
     def __init__(self):
         self.qdrant_service = QdrantService()
         self.document_parser = DocumentParser()
-        logger.info("Hippocampus module initialized")
+        logger.info("DocumentStore module initialized")
 
     async def initialize(self):
-        """Initialize the hippocampus module."""
+        """Initialize the document store module."""
         await self.qdrant_service.initialize()
-        logger.info("Hippocampus memory systems online")
+        logger.info("DocumentStore memory systems online")
 
     async def form_memories(
         self,
@@ -52,7 +52,7 @@ class Hippocampus:
         Returns:
             Dictionary with indexing statistics
         """
-        logger.info(f"Hippocampus: Forming new memories from {len(file_paths)} documents")
+        logger.info(f"DocumentStore: Forming new memories from {len(file_paths)} documents")
 
         try:
             # Parse documents into chunks (encoding)
@@ -78,7 +78,7 @@ class Hippocampus:
                 batch_size=batch_size
             )
 
-            logger.info(f"Hippocampus: Successfully formed {total_indexed} new memories")
+            logger.info(f"DocumentStore: Successfully formed {total_indexed} new memories")
 
             return {
                 "success": True,
@@ -88,7 +88,7 @@ class Hippocampus:
             }
 
         except Exception as e:
-            logger.error(f"Hippocampus: Error forming memories: {str(e)}")
+            logger.error(f"DocumentStore: Error forming memories: {str(e)}")
             raise
 
     async def recall_memories(
@@ -112,7 +112,7 @@ class Hippocampus:
         Returns:
             List of recalled memories
         """
-        logger.info(f"Hippocampus: Recalling memories for query_length={len(query)}")
+        logger.info(f"DocumentStore: Recalling memories for query_length={len(query)}")
 
         try:
             if use_hybrid:
@@ -131,12 +131,12 @@ class Hippocampus:
                     top_k=top_k
                 )
 
-            logger.info(f"Hippocampus: Recalled {len(memories)} relevant memories")
+            logger.info(f"DocumentStore: Recalled {len(memories)} relevant memories")
 
             return memories
 
         except Exception as e:
-            logger.error(f"Hippocampus: Error recalling memories: {str(e)}")
+            logger.error(f"DocumentStore: Error recalling memories: {str(e)}")
             raise
 
     async def create_memory_space(
@@ -154,7 +154,7 @@ class Hippocampus:
         Returns:
             True if successful
         """
-        logger.info(f"Hippocampus: Creating new memory space: {collection_name}")
+        logger.info(f"DocumentStore: Creating new memory space: {collection_name}")
 
         try:
             success = await self.qdrant_service.create_collection(
@@ -163,14 +163,14 @@ class Hippocampus:
             )
 
             if success:
-                logger.info(f"Hippocampus: Memory space '{collection_name}' created successfully")
+                logger.info(f"DocumentStore: Memory space '{collection_name}' created successfully")
             else:
-                logger.warning(f"Hippocampus: Memory space '{collection_name}' already exists")
+                logger.warning(f"DocumentStore: Memory space '{collection_name}' already exists")
 
             return success
 
         except Exception as e:
-            logger.error(f"Hippocampus: Error creating memory space: {str(e)}")
+            logger.error(f"DocumentStore: Error creating memory space: {str(e)}")
             raise
 
     async def forget_memories(self, collection_name: str) -> bool:
@@ -183,18 +183,18 @@ class Hippocampus:
         Returns:
             True if successful
         """
-        logger.info(f"Hippocampus: Forgetting memory space: {collection_name}")
+        logger.info(f"DocumentStore: Forgetting memory space: {collection_name}")
 
         try:
             success = await self.qdrant_service.delete_collection(
                 collection_name=collection_name
             )
 
-            logger.info(f"Hippocampus: Memory space '{collection_name}' forgotten")
+            logger.info(f"DocumentStore: Memory space '{collection_name}' forgotten")
             return success
 
         except Exception as e:
-            logger.error(f"Hippocampus: Error forgetting memories: {str(e)}")
+            logger.error(f"DocumentStore: Error forgetting memories: {str(e)}")
             raise
 
     async def get_memory_stats(self, collection_name: str) -> Dict[str, Any]:
@@ -207,16 +207,16 @@ class Hippocampus:
         Returns:
             Dictionary with memory statistics
         """
-        logger.debug(f"Hippocampus: Retrieving memory stats for '{collection_name}'")
+        logger.debug(f"DocumentStore: Retrieving memory stats for '{collection_name}'")
 
         try:
             stats = await self.qdrant_service.get_collection_info(collection_name)
 
-            logger.debug(f"Hippocampus: Memory stats retrieved for '{collection_name}'")
+            logger.debug(f"DocumentStore: Memory stats retrieved for '{collection_name}'")
             return stats
 
         except Exception as e:
-            logger.error(f"Hippocampus: Error getting memory stats: {str(e)}")
+            logger.error(f"DocumentStore: Error getting memory stats: {str(e)}")
             raise
 
     async def memory_exists(self, collection_name: str) -> bool:

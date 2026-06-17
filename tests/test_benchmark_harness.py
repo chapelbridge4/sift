@@ -263,7 +263,7 @@ class TestBenchmarkRunner(unittest.TestCase):
             output_json=None,
         )
 
-        with patch("scripts.run_benchmark.load_prefrontal_cortex_class", return_value=FakeBrain), \
+        with patch("scripts.run_benchmark.load_orchestrator_class", return_value=FakeBrain), \
              patch("scripts.run_benchmark.setup_collection", new=AsyncMock(return_value=True)), \
              patch("scripts.run_benchmark.cleanup_collection", new=AsyncMock()), \
              patch("scripts.run_benchmark.get_benchmark_queries", return_value=[fake_query]), \

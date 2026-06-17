@@ -11,7 +11,7 @@ MODES (which signals are active determines which stages can fail)
     Only *retrieval-stage* failures surface (RELEVANT_NOT_RETRIEVED). This is
     the zero-dependency report — no model downloads beyond the embedder.
 * ``--rerank``             retrieved ✓ · reranked ✓ · answers ✗ · judge ✗
-    Runs the brain cross-encoder reranker (app/brain/amygdala.py :: Amygdala)
+    Runs the cross-encoder reranker (app/pipeline/reranker.py :: Reranker)
     over each query's retrieved candidates and feeds the reranked doc_id order
     into the classifier, so *reranking-stage* demotions (RELEVANT_DEMOTED) can
     surface alongside retrieval misses. Downloads a small (~80 MB) cross-encoder
@@ -73,7 +73,7 @@ from scripts.benchmark_beir import (
 def rerank_to_doc_ids(reranked_docs: list[dict]) -> list[str]:
     """Map reranked document dicts back to an ordered list of ``doc_id`` strings.
 
-    The brain reranker (``Amygdala.rerank``) returns document dicts (copies of
+    The reranker (``Reranker.rerank``) returns document dicts (copies of
     the candidates, re-sorted by cross-encoder score). The triage classifier
     only needs the post-rerank *order* of doc_ids, which is what
     ``QueryTrace.reranked`` expects. Documents without a ``doc_id`` are skipped.
@@ -89,9 +89,9 @@ def rerank_to_doc_ids(reranked_docs: list[dict]) -> list[str]:
 
 
 def _build_reranker(top_k: int):
-    """Instantiate the brain cross-encoder reranker for a clean top-k reorder.
+    """Instantiate the cross-encoder reranker for a clean top-k reorder.
 
-    Overrides the Amygdala instance settings so ``rerank`` is a *pure* reorder
+    Overrides the Reranker instance settings so ``rerank`` is a *pure* reorder
     of all ``top_k`` retrieved candidates:
       * RERANK_ENABLED=True   — otherwise rerank returns the input untouched.
       * RERANK_TOP_K=top_k    — keep every candidate so a demotion is visible
@@ -103,12 +103,12 @@ def _build_reranker(top_k: int):
                                 which would collapse the order; disable it so the
                                 reordering reflects the cross-encoder alone.
 
-    The cross-encoder model itself is loaded lazily inside ``Amygdala.rerank``
+    The cross-encoder model itself is loaded lazily inside ``Reranker.rerank``
     on first call (memory-guarded), not here.
     """
-    from app.brain.amygdala import Amygdala
+    from app.pipeline.reranker import Reranker
 
-    reranker = Amygdala()
+    reranker = Reranker()
     # Route every override through a per-instance copy (model_copy) so the shared
     # global Settings singleton is never mutated — mutating reranker.settings in
     # place would leak process-wide (latent bug if this runner is ever imported
@@ -456,7 +456,7 @@ def _write_report(
     lines.append("| Embedding model | sentence-transformers/all-MiniLM-L6-v2 (fastembed) |")
     lines.append("| Vector store | Qdrant in-memory (no Docker) |")
     if do_rerank:
-        lines.append("| Reranker | cross-encoder/ms-marco-MiniLM-L-6-v2 (Amygdala.rerank, CPU) |")
+        lines.append("| Reranker | cross-encoder/ms-marco-MiniLM-L-6-v2 (Reranker.rerank, CPU) |")
         lines.append(f"| Reranker reordered | {n_reorders}/{n_queries} queries |")
     else:
         lines.append("| Reranker | None (retrieval order only) |")
@@ -522,7 +522,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--rerank",
         action="store_true",
-        help="Run the brain cross-encoder reranker so reranking-stage demotions can surface",
+        help="Run the cross-encoder reranker so reranking-stage demotions can surface",
     )
     p.add_argument(
         "--with-answers",

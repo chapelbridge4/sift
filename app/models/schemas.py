@@ -128,9 +128,9 @@ class QueryResponse(BaseModel):
     model_used: Optional[str] = Field(default=None, description="LLM model that was used for generation")
 
 
-# Brain Module Schemas
+# Reranker importance-scoring schemas
 class EmotionalContext(BaseModel):
-    """Emotional/importance context for Amygdala module."""
+    """Importance-scoring context for the reranker."""
     importance_score: float = Field(ge=0.0, le=1.0)
     recency_score: float = Field(ge=0.0, le=1.0)
     relevance_score: float = Field(ge=0.0, le=1.0)

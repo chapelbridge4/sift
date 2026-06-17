@@ -15,7 +15,6 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.brain import PrefrontalCortex
 from app.config import get_settings
 from app.models.schemas import (
     CollectionCreate,
@@ -28,6 +27,7 @@ from app.models.schemas import (
     UploadFilesRequest,
     UploadFilesResponse,
 )
+from app.pipeline import RagOrchestrator
 from app.security import UnsafePathError, resolve_safe_paths
 
 # Configure logging
@@ -48,7 +48,7 @@ logger.add(
 
 
 # Global brain instance
-brain: PrefrontalCortex = None
+brain: RagOrchestrator = None
 
 
 @asynccontextmanager
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     global brain
     logger.info("Starting Brain-inspired RAG system...")
 
-    brain = PrefrontalCortex()
+    brain = RagOrchestrator()
     await brain.initialize()
 
     logger.info("Brain systems initialized and ready")
@@ -110,7 +110,7 @@ async def health_check():
     """
     logger.info("Health check requested")
 
-    qdrant_ok = await brain.hippocampus.qdrant_service.health_check()
+    qdrant_ok = await brain.document_store.qdrant_service.health_check()
     mlx_ok = await brain.llm_service.health_check()
 
     return HealthResponse(
@@ -127,7 +127,7 @@ async def build_collection(request: CollectionCreate):
     """
     Create a new collection for document storage.
 
-    This creates a memory space in the Hippocampus with hybrid search support.
+    This creates a collection in the DocumentStore with hybrid search support.
 
     Args:
         request: Collection creation parameters
@@ -139,7 +139,7 @@ async def build_collection(request: CollectionCreate):
 
     try:
         # Check if collection already exists
-        exists = await brain.hippocampus.memory_exists(request.collection_name)
+        exists = await brain.document_store.memory_exists(request.collection_name)
 
         if exists:
             raise HTTPException(
@@ -148,7 +148,7 @@ async def build_collection(request: CollectionCreate):
             )
 
         # Create collection
-        success = await brain.hippocampus.create_memory_space(
+        success = await brain.document_store.create_memory_space(
             collection_name=request.collection_name
         )
 
@@ -180,7 +180,7 @@ async def upload_files(request: UploadFilesRequest):
     """
     Upload and index documents to a collection.
 
-    This forms new memories in the Hippocampus by:
+    This indexes new documents into the DocumentStore by:
     1. Parsing documents into chunks
     2. Generating hybrid embeddings (dense + sparse)
     3. Storing in Qdrant with metadata
@@ -199,7 +199,7 @@ async def upload_files(request: UploadFilesRequest):
 
     try:
         # Check if collection exists
-        exists = await brain.hippocampus.memory_exists(request.collection_name)
+        exists = await brain.document_store.memory_exists(request.collection_name)
 
         if not exists:
             raise HTTPException(
@@ -214,7 +214,7 @@ async def upload_files(request: UploadFilesRequest):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
         # Form memories from documents
-        result = await brain.hippocampus.form_memories(
+        result = await brain.document_store.form_memories(
             collection_name=request.collection_name,
             file_paths=safe_paths,
             batch_size=request.batch_size or 32
@@ -256,7 +256,7 @@ async def delete_collection(request: CollectionDelete):
     """
     Delete a collection and all its documents.
 
-    This removes a memory space from the Hippocampus.
+    This removes a collection from the DocumentStore.
 
     Args:
         request: Delete request with collection name
@@ -268,7 +268,7 @@ async def delete_collection(request: CollectionDelete):
 
     try:
         # Check if collection exists
-        exists = await brain.hippocampus.memory_exists(request.collection_name)
+        exists = await brain.document_store.memory_exists(request.collection_name)
 
         if not exists:
             raise HTTPException(
@@ -277,7 +277,7 @@ async def delete_collection(request: CollectionDelete):
             )
 
         # Delete collection
-        success = await brain.hippocampus.forget_memories(request.collection_name)
+        success = await brain.document_store.forget_memories(request.collection_name)
 
         if not success:
             raise HTTPException(
@@ -307,11 +307,11 @@ async def query(request: QueryRequest):
     """
     Query the RAG system with hybrid search and LLM generation.
 
-    This orchestrates the full brain pipeline:
-    1. Hippocampus: Retrieve relevant memories (hybrid search)
-    2. Amygdala: Rank by importance
-    3. Working Memory: Maintain conversation context
-    4. Prefrontal Cortex: Generate reasoned response
+    This orchestrates the full RAG pipeline:
+    1. DocumentStore: Retrieve relevant documents (hybrid search)
+    2. Reranker: Rank by importance
+    3. Conversation Memory: Maintain conversation context
+    4. RagOrchestrator: Generate reasoned response
 
     Args:
         request: Query request parameters
@@ -328,7 +328,7 @@ async def query(request: QueryRequest):
 
     try:
         # Check if collection exists
-        exists = await brain.hippocampus.memory_exists(request.collection_name)
+        exists = await brain.document_store.memory_exists(request.collection_name)
 
         if not exists:
             raise HTTPException(
@@ -412,12 +412,12 @@ async def list_collections():
         List of collection names with stats
     """
     try:
-        collections = await brain.hippocampus.qdrant_service.client.get_collections()
+        collections = await brain.document_store.qdrant_service.client.get_collections()
 
         collection_info = []
         for collection in collections.collections:
             try:
-                info = await brain.hippocampus.get_memory_stats(collection.name)
+                info = await brain.document_store.get_memory_stats(collection.name)
                 collection_info.append(info)
             except Exception as e:
                 logger.warning(f"Error getting info for collection {collection.name}: {str(e)}")
