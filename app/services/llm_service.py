@@ -6,7 +6,9 @@ Single code path for all requests — mlx-vlm handles both text-only and vision.
 """
 
 import asyncio
+import functools
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from loguru import logger
@@ -83,9 +85,35 @@ class LLMService:
         self._current_model_id: Optional[str] = None
         self._current_model: Optional[tuple[Any, Any]] = None
 
+        # MLX-Metal GPU streams are thread-affine: a model's GPU stream lives on
+        # the thread that created it, and generating from another thread raises
+        # "There is no Stream(gpu, 1) in current thread." We pin every MLX op
+        # (load, warmup, generate, chat, stream) to ONE dedicated worker thread
+        # so load and generation always share the same Metal stream.
+        self._mlx_executor: Optional[ThreadPoolExecutor] = None
+
         self.current_profile = None
         self.model_name = self.model_manager.get_model_for_profile()
         self.current_config = self.model_manager.get_model_config()
+
+    def _get_mlx_executor(self) -> ThreadPoolExecutor:
+        """Return the single-worker executor that owns all MLX/Metal ops.
+
+        Created lazily so constructing an LLMService stays cheap (no thread
+        spawned until the first MLX call).
+        """
+        if self._mlx_executor is None:
+            self._mlx_executor = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="mlx"
+            )
+        return self._mlx_executor
+
+    async def _run_mlx(self, fn, *args, **kwargs):
+        """Run a blocking MLX call on the dedicated single MLX thread."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            self._get_mlx_executor(), functools.partial(fn, *args, **kwargs)
+        )
 
     def _get_model_sync(self, model_id: str) -> tuple[Any, Any]:
         """
@@ -131,7 +159,7 @@ class LLMService:
         model_id = self.model_manager.get_model_for_profile()
         try:
             self._current_model_id = model_id
-            self._current_model = await asyncio.to_thread(
+            self._current_model = await self._run_mlx(
                 self._get_model_sync, model_id
             )
             logger.info(f"MLX-VLM model '{model_id}' loaded successfully")
@@ -141,7 +169,7 @@ class LLMService:
                 import mlx_vlm
                 model, tokenizer = self._current_model
                 logger.info("Running MLX warmup (1-token generation)...")
-                await asyncio.to_thread(
+                await self._run_mlx(
                     mlx_vlm.generate,
                     model, tokenizer,
                     prompt=" ",
@@ -157,7 +185,7 @@ class LLMService:
         """Ensure the specified model is loaded."""
         if self._current_model_id != model_id or self._current_model is None:
             self._current_model_id = model_id
-            self._current_model = await asyncio.to_thread(
+            self._current_model = await self._run_mlx(
                 self._get_model_sync, model_id
             )
 
@@ -242,6 +270,28 @@ class LLMService:
         text = text.replace("<think>", "").replace("</think>", "").strip()
         return text
 
+    @staticmethod
+    def _apply_chat_template(tokenizer, messages, enable_thinking: bool) -> str:
+        """Render messages to a prompt string, controlling Qwen thinking mode.
+
+        ``enable_thinking`` is passed to the tokenizer template (the only place
+        that actually toggles reasoning for Qwen3.5). Tokenizers whose template
+        predates this kwarg fall back to the default rendering.
+        """
+        try:
+            return tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+        except TypeError:
+            return tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+
     def _build_generate_args(
         self,
         prompt: str,
@@ -321,7 +371,7 @@ class LLMService:
                 final_repetition_penalty
             )
 
-            result = await asyncio.to_thread(
+            result = await self._run_mlx(
                 mlx_vlm.generate,
                 model,
                 tokenizer,
@@ -412,7 +462,7 @@ class LLMService:
                 )
                 generate_args["image"] = image_path
 
-                result = await asyncio.to_thread(
+                result = await self._run_mlx(
                     mlx_vlm.generate,
                     model,
                     tokenizer,
@@ -425,7 +475,7 @@ class LLMService:
                 )
                 generate_args["image"] = image_url
 
-                result = await asyncio.to_thread(
+                result = await self._run_mlx(
                     mlx_vlm.generate,
                     model,
                     tokenizer,
@@ -487,19 +537,20 @@ class LLMService:
                 else self.current_config.get("repetition_penalty", 1.15)
             )
 
-            # Apply chat template (Qwen3.5 defaults to thinking OFF, no explicit flag needed)
-            prompt = tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
+            # Thinking is controlled by the chat template, NOT by mlx_vlm.generate.
+            # The Qwen3.5 template defaults thinking ON (it opens a <think> block
+            # with no close); enable_thinking=False injects a closed, empty
+            # <think></think> block that suppresses reasoning. Without this the
+            # model emits a long reasoning dump that the sanitizer strips to an
+            # empty string.
+            prompt = self._apply_chat_template(tokenizer, messages, enable_thinking)
 
             generate_args = self._build_generate_args(
                 prompt, temperature, max_tokens, enable_thinking,
                 final_repetition_penalty
             )
 
-            result = await asyncio.to_thread(
+            result = await self._run_mlx(
                 mlx_vlm.generate,
                 model,
                 tokenizer,
@@ -518,6 +569,26 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating chat completion: {str(e)}")
             raise
+
+    @staticmethod
+    def _build_rag_system_prompt(model_name: str) -> str:
+        """Build the RAG system prompt.
+
+        Note: we deliberately do NOT prepend a "/no_think" control token for
+        Qwen models. On this MLX build that token lands at the start of the raw
+        user turn and produces malformed output (a leaked empty <think></think>
+        block, or an empty string). Thinking is instead disabled the correct
+        way — via the chat template's enable_thinking flag in chat() — so the
+        prefix is both unnecessary and harmful. ``model_name`` is kept for
+        forward compatibility with model-specific prompt tweaks.
+        """
+        return (
+            "You are a helpful AI assistant that answers questions based on the "
+            "provided context. Provide concise, accurate answers (2-4 sentences "
+            "maximum unless more detail is explicitly requested). If the context "
+            "doesn't contain enough information, acknowledge this briefly. Always "
+            "ground your responses in the provided context."
+        )
 
     async def generate_rag_response(
         self,
@@ -574,17 +645,7 @@ class LLMService:
             for i, ctx in enumerate(retrieved_contexts)
         ])
 
-        system_prompt = (
-            "You are a helpful AI assistant that answers questions based on the "
-            "provided context. Provide concise, accurate answers (2-4 sentences "
-            "maximum unless more detail is explicitly requested). If the context "
-            "doesn't contain enough information, acknowledge this briefly. Always "
-            "ground your responses in the provided context."
-        )
-
-        # Prepend /no_think for Qwen models to suppress thinking output
-        if "qwen" in model_name.lower():
-            system_prompt = "/no_think " + system_prompt
+        system_prompt = self._build_rag_system_prompt(model_name)
 
         rag_prompt = f"""Context Information:
 {context_str}
@@ -593,34 +654,25 @@ Question: {query}
 
 Please provide a concise answer (2-4 sentences) based on the context above."""
 
-        try:
-            if conversation_history:
-                messages = conversation_history.copy()
-                messages.append({
-                    "role": "system",
-                    "content": system_prompt
-                })
-                messages.append({
-                    "role": "user",
-                    "content": rag_prompt
-                })
+        # Route through chat() so the prompt is built with the proper chat
+        # template (which is the only mechanism that toggles Qwen thinking).
+        # The system message MUST come first — the Qwen template rejects a
+        # system turn placed after conversation history.
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": system_prompt}
+        ]
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": rag_prompt})
 
-                response = await self.chat(
-                    messages=messages,
-                    temperature=final_temperature,
-                    max_tokens=final_max_tokens,
-                    model_name=model_name,
-                    enable_thinking=thinking_for_request
-                )
-            else:
-                response = await self.generate(
-                    prompt=rag_prompt,
-                    system_prompt=system_prompt,
-                    temperature=final_temperature,
-                    max_tokens=final_max_tokens,
-                    model_name=model_name,
-                    enable_thinking=thinking_for_request
-                )
+        try:
+            response = await self.chat(
+                messages=messages,
+                temperature=final_temperature,
+                max_tokens=final_max_tokens,
+                model_name=model_name,
+                enable_thinking=thinking_for_request
+            )
 
             logger.info("RAG response generated successfully")
             return response
@@ -699,7 +751,7 @@ Please provide a concise answer (2-4 sentences) based on the context above."""
                     temperature=0.1,
                 )
 
-            result = await asyncio.to_thread(do_generate)
+            result = await self._run_mlx(do_generate)
             return result is not None and len(result) > 0
 
         except Exception as e:
@@ -712,3 +764,6 @@ Please provide a concise answer (2-4 sentences) based on the context above."""
         self._model_cache.clear()
         self._current_model = None
         self._current_model_id = None
+        if self._mlx_executor is not None:
+            self._mlx_executor.shutdown(wait=False)
+            self._mlx_executor = None
