@@ -2,9 +2,9 @@
 
 [![ci](https://github.com/chapelbridge4/sift/actions/workflows/ci.yml/badge.svg)](https://github.com/chapelbridge4/sift/actions/workflows/ci.yml)
 
-Most RAG tooling assumes a cloud LLM and a single tenant, and tells you *that* a query failed but not *why*. **sift** runs the full loop — retrieval, generation, evaluation, and **per-query failure triage** — **offline on an 8 GB laptop**, with no cloud account and no Docker required. Inference uses GGUF/llama.cpp (Windows, Linux, macOS, CPU-capable); Apple-Silicon MLX is an optional fast-path.
+Most RAG tooling assumes a cloud LLM and a single tenant, and tells you *that* a query failed but not *why*. **sift** runs the full loop — retrieval, generation, evaluation, and **per-query failure triage** — **offline on an 8 GB laptop**, with no cloud account and no Docker required. Retrieval, triage, and evaluation are cross-platform and CPU-only (no GPU); LLM answer generation via `/query` defaults to Apple-Silicon MLX, with GGUF/llama.cpp for cross-platform direct and offline generation.
 
-On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, embedded Qdrant) retrieves at **recall@10 = 0.774** — full 300-query test set, ~16 ms/query, 5,183-doc corpus — measured against ground-truth relevance judgments, not keyword matching. Generation with Qwen3-4B (Q4_K_M) runs at **~19 tok/s, ~2.9 GB RSS** on an Apple M1 (8 GB). Full numbers and the quant × KV-cache matrix: [BENCHMARKS.md](BENCHMARKS.md).
+On the public **BEIR/SciFact** benchmark the default stack (MiniLM-L6 dense, embedded Qdrant) retrieves at **recall@10 = 0.774** — full 300-query test set, ~16 ms/query, 5,183-doc corpus — measured against ground-truth relevance judgments, not keyword matching. [BENCHMARKS.md](BENCHMARKS.md) reports GGUF Qwen3-4B (Q4_K_M) at **~19 tok/s, ~2.9 GB RSS** on an Apple M1 (8 GB); the default `/query` RAG profiles use MLX `Qwen3.5-4B-MLX-4bit` instead.
 
 > Research/prototype service — no built-in authentication; the ingestion endpoint accepts server-local file paths. Keep it on trusted local networks unless you add auth and deployment hardening.
 
@@ -69,13 +69,13 @@ Done — no LLM download, no Docker, no cloud.  Time to add your corpus.
 <!-- GIF capture is a MANUAL one-time human step — the text output block above makes this README useful before the GIF lands. -->
 
 <!-- GitHub repo metadata (run ONCE manually — do NOT execute in CI):
-gh repo edit chapelbridge4/sift --description "Local-first RAG with per-query failure triage — runs on 8GB, GGUF/llama.cpp, honest BEIR evals" --add-topic rag --add-topic llm --add-topic local-first --add-topic evaluation --add-topic qdrant --add-topic llama-cpp --add-topic information-retrieval
+gh repo edit chapelbridge4/sift --description "Local-first RAG with per-query failure triage — runs on 8GB, MLX default on Apple Silicon, honest BEIR evals" --add-topic rag --add-topic llm --add-topic local-first --add-topic evaluation --add-topic qdrant --add-topic mlx --add-topic information-retrieval
 -->
 
 ## What it does
 
 - **Local-first RAG pipeline** — dense / sparse / hybrid retrieval over Qdrant, reranking, and working-memory conversation context, behind a FastAPI API.
-- **Runs on low hardware** — GGUF/llama.cpp default backend (cross-platform, CPU-capable); embedded Qdrant means zero infrastructure to clone and run; KV-cache quantization (`q8_0`/`q4_0`, flash-attention) for context headroom.
+- **Runs on low hardware** — retrieval, triage and eval are cross-platform and CPU-only; answer generation defaults to MLX on Apple Silicon, with GGUF/llama.cpp (`q8_0`/`q4_0` KV-cache, flash-attention) for cross-platform direct/offline generation; embedded Qdrant means zero infrastructure to clone and run.
 - **Measured honestly** — true recall@k on a public benchmark (BEIR/SciFact) plus a reproducible quant × KV-cache × throughput/RAM matrix; benchmarks state where they break, not just where they shine.
 - **Per-query failure triage** — classifies each failed query by a 16-type RAG error taxonomy across four pipeline stages (chunking / retrieval / reranking / generation), with per-stage attribution, a confidence, and a fix hint.
 
@@ -172,7 +172,7 @@ Key directories:
 - Python 3.11+.
 - No Docker required — Qdrant runs embedded by default. (Docker only if you opt into a Qdrant server.)
 - macOS Apple Silicon for the default MLX RAG path (`INFERENCE_BACKEND=mlx`). GGUF/llama.cpp works cross-platform (Windows / Linux / macOS, CPU-capable) for direct generation and planned offline pipelines (e.g. `make_knowledge`).
-- Disk space for one GGUF model (~2.5 GB for Qwen3-4B Q4_K_M) and embedding caches.
+- Disk space for one LLM (~2–3 GB MLX 4-bit or ~2.5 GB GGUF Qwen3-4B Q4_K_M) plus embedding caches.
 
 ## Setup
 
@@ -182,14 +182,22 @@ cd sift
 
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt          # cross-platform core (GGUF backend)
-# optional, Apple Silicon only:
-# pip install -r requirements-mlx.txt
+pip install -r requirements.txt
+# Apple Silicon (default RAG path): also install MLX
+pip install -r requirements-mlx.txt
 
 cp .env.example .env
 ```
 
-Qdrant runs **embedded** by default (`QDRANT_MODE=embedded`) — no server needed. Fetch a GGUF model once:
+Qdrant runs **embedded** by default (`QDRANT_MODE=embedded`) — no server needed.
+
+**Apple Silicon (default):** prefetch the MLX RAG model (`INFERENCE_BACKEND=mlx` is the config default):
+
+```bash
+.venv/bin/python -m mlx_lm.download --model mlx-community/Qwen3.5-4B-MLX-4bit
+```
+
+**Cross-platform / GGUF path** (`INFERENCE_BACKEND=gguf` — direct generation; full `/query` profiles need a `RagBackend`-compatible backend):
 
 ```bash
 python3 -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='unsloth/Qwen3-4B-GGUF', filename='Qwen3-4B-Q4_K_M.gguf', local_dir='~/.cache/gguf')"
@@ -218,7 +226,7 @@ Copy `.env.example` to `.env` and adjust local values. Common settings:
 | `QDRANT_HOST` | `localhost` | Local Qdrant host |
 | `QDRANT_PORT` | `6333` | HTTP port |
 | `QDRANT_API_KEY` | empty | Set only for protected remote Qdrant |
-| `INFERENCE_BACKEND` | `gguf` | `gguf` (cross-platform) or `mlx` (Apple fast-path) |
+| `INFERENCE_BACKEND` | `mlx` | `mlx` (default; Apple-Silicon `/query` RAG path) or `gguf` (cross-platform direct/offline generation) |
 | `QDRANT_MODE` | `embedded` | `embedded` (no server) or `server` (host/port) |
 | `QDRANT_PATH` | `./qdrant_data` | Embedded storage path (or `:memory:`) |
 | `GGUF_MODEL_PATH` | `~/.cache/gguf/Qwen3-4B-Q4_K_M.gguf` | Path to the GGUF model file |
@@ -239,11 +247,7 @@ The default RAG backend is **MLX** (`INFERENCE_BACKEND=mlx`, Apple Silicon). Pro
 | `balanced` | 600 | off | Longer answers when memory allows |
 | `quality` | 800 | on | Deeper reasoning experiments |
 
-Models download to the MLX/Hugging Face cache on first use. To prefetch manually:
-
-```bash
-.venv/bin/python -m mlx_lm.download --model mlx-community/Qwen3.5-4B-MLX-4bit
-```
+Models download to the MLX/Hugging Face cache on first use (see Setup for prefetch).
 
 ## API Examples
 
