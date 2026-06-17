@@ -25,7 +25,7 @@ Usage:
 
 import asyncio
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from loguru import logger
 
@@ -46,14 +46,18 @@ def _ggml_type(name: str):
     }[name]
 
 
-def _resolve_model_path(settings) -> Optional[str]:
+def _resolve_model_path(settings, *, model_path: Optional[str] = None) -> Optional[str]:
     """
     Return local path to GGUF model file, or None if not downloaded yet.
 
     Search order:
-    1. settings.GGUF_MODEL_PATH (explicit override)
-    2. ~/.cache/gguf/<filename>
+    1. model_path constructor override (knowledge backend)
+    2. settings.GGUF_MODEL_PATH (explicit override)
+    3. ~/.cache/gguf/<filename>
     """
+    if model_path and Path(model_path).exists():
+        return model_path
+
     explicit = getattr(settings, "GGUF_MODEL_PATH", None)
     if explicit and Path(explicit).exists():
         return explicit
@@ -73,8 +77,9 @@ class GGUFService:
     import time — no heavy work happens in __init__.
     """
 
-    def __init__(self):
+    def __init__(self, *, model_path: Optional[str] = None):
         self.settings = get_settings()
+        self._model_path_override = model_path
         self._llm = None  # llama_cpp.Llama instance
         self._lock = asyncio.Lock()
 
@@ -84,7 +89,9 @@ class GGUFService:
             if self._llm is not None:
                 return
 
-            model_path = _resolve_model_path(self.settings)
+            model_path = _resolve_model_path(
+                self.settings, model_path=self._model_path_override
+            )
             if model_path is None:
                 raise FileNotFoundError(
                     "GGUF model not found. Download it first:\n"
@@ -156,6 +163,48 @@ class GGUFService:
             return text.strip()
         except Exception as e:
             logger.error(f"GGUF generate error: {e}")
+            raise
+
+    async def generate_structured(
+        self,
+        prompt: str,
+        json_schema: dict[str, Any],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 400,
+        system_prompt: Optional[str] = None,
+    ) -> str:
+        """Generate JSON constrained by schema via llama-cpp response_format."""
+        await self.initialize()
+
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response_format: dict[str, Any] = {"type": "json_object"}
+        if json_schema:
+            response_format["schema"] = json_schema
+
+        logger.debug(
+            "GGUF generate_structured: prompt_len=%s, max_tokens=%s",
+            len(prompt),
+            max_tokens,
+        )
+
+        try:
+            result = await asyncio.to_thread(
+                self._llm.create_chat_completion,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                response_format=response_format,
+            )
+            text = result["choices"][0]["message"]["content"]
+            logger.debug("GGUF structured generated %s characters", len(text))
+            return text.strip()
+        except Exception as e:
+            logger.error(f"GGUF generate_structured error: {e}")
             raise
 
     async def generate_rag_response(
