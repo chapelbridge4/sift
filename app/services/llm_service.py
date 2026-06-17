@@ -630,6 +630,7 @@ class LLMService:
         max_tokens: Optional[int] = None,
         model_profile: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
+        extra_system_instruction: Optional[str] = None,
     ) -> str:
         """
         Generate RAG response using retrieved contexts with dynamic model selection.
@@ -677,6 +678,8 @@ class LLMService:
         ])
 
         system_prompt = self._build_rag_system_prompt(model_name)
+        if extra_system_instruction:
+            system_prompt = f"{system_prompt}\n\n{extra_system_instruction}"
 
         rag_prompt = f"""Context Information:
 {context_str}
