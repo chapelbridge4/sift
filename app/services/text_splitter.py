@@ -266,6 +266,7 @@ class MarkdownChunker:
         chunks = []
         char_pos = 0
         position = start_position
+        prev_pos = -1  # sentinel: first chunk never triggers the no-progress guard below
 
         while char_pos < len(text):
             remaining = text[char_pos:]
@@ -308,7 +309,7 @@ class MarkdownChunker:
 
             position += 1
             char_pos = actual_end - self.chunk_overlap
-            if char_pos <= prev_pos if 'prev_pos' in dir() else False:
+            if char_pos <= prev_pos:  # overlap would stall forward progress → skip it
                 char_pos = actual_end
             prev_pos = actual_end
 

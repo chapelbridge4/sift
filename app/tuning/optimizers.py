@@ -86,7 +86,7 @@ class SpeculativeDecoder:
 
     @property
     def min_acceptance_rate(self) -> float:
-        return settings.SPECULATIVE_MIN_ACCEPTANCE_RATE
+        return get_settings().SPECULATIVE_MIN_ACCEPTANCE_RATE
 
     def is_allowed_for_profile(self, profile: str) -> bool:
         """Only enable for 4B models (balanced/quality), not fast (2B)."""

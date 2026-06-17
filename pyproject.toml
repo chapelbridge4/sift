@@ -3,9 +3,10 @@
 # E501 (line-length) excluded to avoid churn on existing long lines.
 # E702 (multiple statements on one line) excluded — cosmetic, high churn.
 # F811 (redefinition) excluded — local re-imports are intentional in some modules.
-# F821 (undefined name) excluded — false positives with dynamic attribute patterns.
 # F841 (unused variable) excluded — dead assignments in tests and app code are
 #       not behaviour-changing; fixing the `with patch(...) as Var` pattern in
 #       tests requires invasive restructuring with no safety benefit.
+# F821 (undefined name) is ENFORCED — the two prior "false positives" were real
+#       bugs (optimizers.min_acceptance_rate NameError, text_splitter dir() hack).
 select = ["E", "F", "I"]
-ignore = ["E501", "E702", "F811", "F821", "F841"]
+ignore = ["E501", "E702", "F811", "F841"]

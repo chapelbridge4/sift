@@ -85,6 +85,14 @@ class TestSpeculativeDecoder:
             assert opt.is_allowed_for_profile("balanced") is True
             assert opt.is_allowed_for_profile("quality") is True
 
+    def test_min_acceptance_rate_reads_config(self):
+        # Regression: this property referenced a bare `settings` name and raised
+        # NameError when accessed; it must read from get_settings() like its siblings.
+        with patch("app.tuning.optimizers.get_settings") as mock_settings:
+            mock_settings.return_value.SPECULATIVE_MIN_ACCEPTANCE_RATE = 0.42
+            opt = SpeculativeDecoder()
+            assert opt.min_acceptance_rate == 0.42
+
 
 class TestPrefixCache:
     """Test prefix caching optimizer."""
