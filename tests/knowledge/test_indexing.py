@@ -74,6 +74,11 @@ def test_index_artifacts_chunks_with_knowledge_metadata(tmp_path):
     # No raw PDF paths indexed
     assert not any(".pdf" in t for t in captured_texts if "Page" in t)
 
+    # Chunk body only — YAML frontmatter must not be embedded
+    assert not any("doc_type:" in t for t in captured_texts)
+    assert not any(t.startswith("---") for t in captured_texts)
+    assert any("RAG improves recall" in t for t in captured_texts)
+
 
 def test_index_artifacts_empty_dir_returns_zero(tmp_path):
     profile = load_profile("papers")

@@ -86,7 +86,9 @@ def test_cmd_build_runs_pipeline_and_indexes(
         code = cmd_build(args)
 
     assert code == 0
-    mock_scan.assert_called_once_with(Path(str(input_dir)))
+    from app.knowledge.config import load_profile
+
+    mock_scan.assert_called_once_with(Path(str(input_dir)), load_profile("papers"))
     mock_pipeline_cls.assert_called_once()
     mock_pipeline.run.assert_awaited_once_with(
         [str(input_dir / "a.pdf")],

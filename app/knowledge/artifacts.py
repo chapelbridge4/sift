@@ -16,6 +16,15 @@ from app.knowledge.models import (
 )
 
 
+def artifact_body_text(artifact: KnowledgeArtifact) -> str:
+    """Return markdown body text for chunking (excludes YAML frontmatter)."""
+    if isinstance(artifact, PaperSummary):
+        return _paper_summary_body(artifact)
+    if isinstance(artifact, TopicSheet):
+        return artifact.body
+    raise TypeError(f"unsupported artifact type: {type(artifact)!r}")
+
+
 def write_artifact(artifact: KnowledgeArtifact, output_dir: Path) -> Path:
     """Write a knowledge artifact to markdown with YAML frontmatter."""
     output_dir = Path(output_dir)

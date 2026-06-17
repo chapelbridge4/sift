@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
 
+from app.config import get_settings
 from app.knowledge.retrieval import (
     KNOWLEDGE_CITATION_INSTRUCTION,
     build_retrieval_sources,
@@ -227,10 +228,10 @@ class RagOrchestrator:
         Returns:
             Tuple of (generated answer, model_name used)
         """
-        # Extract text contexts from top-ranked memories
+        context_limit = get_settings().RERANK_TOP_K
         contexts = [
-            memory['text']
-            for memory in ranked_memories[:5]  # Use top 5 for faster response
+            memory["text"]
+            for memory in ranked_memories[:context_limit]
         ]
 
         # Get model for this request without modifying persistent state

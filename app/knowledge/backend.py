@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any, Protocol, TypeVar, runtime_checkable
@@ -36,9 +37,16 @@ class KnowledgeBackend(Protocol):
 class KnowledgeLLM:
     """DI wrapper: JSON parse, Pydantic validate, retry on malformed output."""
 
-    def __init__(self, backend: Any, *, max_retries: int = 2) -> None:
+    def __init__(
+        self,
+        backend: Any,
+        *,
+        max_retries: int = 2,
+        retry_backoff_base_seconds: float = 0.5,
+    ) -> None:
         self._backend = backend
         self._max_retries = max_retries
+        self._retry_backoff_base_seconds = retry_backoff_base_seconds
 
     async def extract(
         self,
@@ -66,6 +74,10 @@ class KnowledgeLLM:
                 if attempt >= self._max_retries:
                     break
                 current_prompt = prompt + _JSON_RETRY_REMINDER
+                if self._retry_backoff_base_seconds > 0:
+                    await asyncio.sleep(
+                        self._retry_backoff_base_seconds * (2**attempt)
+                    )
 
         raise ValueError(
             f"structured extract failed after {self._max_retries + 1} attempts "
@@ -107,6 +119,18 @@ def _resolve_knowledge_model_path(profile: KnowledgeProfile) -> str:
     if profile.llm.model_path:
         return profile.llm.model_path
     return settings.KNOWLEDGE_GGUF_MODEL_PATH
+
+
+def build_knowledge_llm(profile: KnowledgeProfile | str | None = None) -> KnowledgeLLM:
+    """Factory: KnowledgeLLM with retry settings from the active profile."""
+    prof = profile if isinstance(profile, KnowledgeProfile) else load_profile(
+        profile or get_settings().KNOWLEDGE_PROFILE
+    )
+    return KnowledgeLLM(
+        get_knowledge_backend(prof),
+        max_retries=prof.llm.max_retries,
+        retry_backoff_base_seconds=prof.llm.retry_backoff_base_seconds,
+    )
 
 
 def get_knowledge_backend(profile: KnowledgeProfile | str | None = None) -> Any:

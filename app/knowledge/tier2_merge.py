@@ -31,10 +31,19 @@ class TopicMergeOutput(BaseModel):
     sources: list[TopicSource] = Field(default_factory=list)
 
 
-def _format_paper_summaries(summaries: Sequence[PaperSummary]) -> str:
+def contributing_papers(
+    cluster: TopicCluster, paper_summaries: Sequence[PaperSummary]
+) -> list[PaperSummary]:
+    paper_ids = {s.paper_id for s in cluster.spans}
+    return [p for p in paper_summaries if p.paper_id in paper_ids]
+
+
+def _format_paper_summaries(
+    summaries: Sequence[PaperSummary], *, max_claims_per_paper: int
+) -> str:
     blocks: list[str] = []
     for paper in summaries:
-        claims = "; ".join(c.text for c in paper.claims[:5])
+        claims = "; ".join(c.text for c in paper.claims[:max_claims_per_paper])
         blocks.append(
             f"### {paper.paper_id}: {paper.title}\n"
             f"Topics: {', '.join(paper.topics)}\n"
@@ -52,13 +61,6 @@ def _format_conflicting_spans(spans: Sequence[ClaimSpan]) -> str:
     return "\n".join(f"- [{s.paper_id}/{s.section}] {s.text}" for s in spans)
 
 
-def _contributing_papers(
-    cluster: TopicCluster, paper_summaries: Sequence[PaperSummary]
-) -> list[PaperSummary]:
-    paper_ids = {s.paper_id for s in cluster.spans}
-    return [p for p in paper_summaries if p.paper_id in paper_ids]
-
-
 async def merge_topic(
     cluster: TopicCluster,
     paper_summaries: Sequence[PaperSummary],
@@ -67,14 +69,17 @@ async def merge_topic(
 ) -> TopicSheet:
     """One LLM call per cluster; links_to populated from contributing paper_ids."""
     contract = load_prompt("topic_merge")
-    contributing = _contributing_papers(cluster, paper_summaries)
+    contributing = contributing_papers(cluster, paper_summaries)
     links_to = sorted({p.paper_id for p in contributing})
 
     prompt = format_prompt(
         contract,
         cluster_id=cluster.cluster_id,
         cluster_label=cluster.label,
-        paper_summaries=_format_paper_summaries(contributing),
+        paper_summaries=_format_paper_summaries(
+            contributing,
+            max_claims_per_paper=profile.tier2.max_claims_per_paper,
+        ),
         conflicting_spans=_format_conflicting_spans(cluster.spans),
         max_output_tokens=profile.tier2.max_output_tokens,
     )

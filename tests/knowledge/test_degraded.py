@@ -204,6 +204,39 @@ def test_pipeline_tier2_fallback_writes_degraded_topic(tmp_path):
     assert topic.degraded is True
 
 
+def test_pipeline_guard_runs_before_embed(tmp_path):
+    guard = tmp_path / "fail_guard.sh"
+    guard.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    guard.chmod(0o755)
+
+    doc = _ParsedDoc(
+        paper_id="p1",
+        source_file="p1.pdf",
+        title="T",
+        sections=[_Section("Abstract", _long("rag systems"))],
+    )
+    parser = AsyncMock()
+    parser.parse_for_knowledge = AsyncMock(return_value=[doc])
+
+    embedder = MagicMock()
+    embedder.embed_texts = MagicMock(return_value=[[1.0, 0.0]])
+
+    pipeline = KnowledgePipeline(
+        parser=parser,
+        embedder=embedder,
+        llm=KnowledgeLLM(AsyncMock()),
+        profile=load_profile("papers"),
+        output_dir=tmp_path,
+        skip_hardware_guard=False,
+        hardware_guard_script=guard,
+    )
+
+    with pytest.raises(KnowledgeHardwareError):
+        asyncio.run(pipeline.run(["p1.pdf"], "coll"))
+
+    embedder.embed_texts.assert_not_called()
+
+
 def test_pipeline_raises_hardware_error_when_guard_fails(tmp_path):
     guard = tmp_path / "fail_guard.sh"
     guard.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")

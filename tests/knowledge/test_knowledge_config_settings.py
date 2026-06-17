@@ -1,7 +1,7 @@
 
 
 from app.config import Settings, get_settings
-from app.knowledge.backend import get_knowledge_backend
+from app.knowledge.backend import build_knowledge_llm, get_knowledge_backend
 from app.knowledge.config import load_profile
 
 
@@ -9,6 +9,7 @@ def test_knowledge_settings_defaults():
     settings = Settings(_env_file=None)
     assert settings.KNOWLEDGE_PROFILE == "papers"
     assert settings.KNOWLEDGE_TOPIC_SCORE_BOOST == 1.2
+    assert settings.KNOWLEDGE_DRILL_DOWN_TOP_K == 5
     assert "Qwen3-4B-Instruct-2507-Q4_K_M.gguf" in settings.KNOWLEDGE_GGUF_MODEL_PATH
     assert settings.KNOWLEDGE_OUTPUT_DIR == ""
 
@@ -17,6 +18,14 @@ def test_profile_retrieval_boost_matches_settings_default():
     prof = load_profile("papers")
     settings = Settings(_env_file=None)
     assert prof.retrieval.topic_score_boost == settings.KNOWLEDGE_TOPIC_SCORE_BOOST
+    assert prof.retrieval.drill_down_top_k == settings.KNOWLEDGE_DRILL_DOWN_TOP_K
+
+
+def test_build_knowledge_llm_uses_profile_retry_settings():
+    prof = load_profile("papers")
+    llm = build_knowledge_llm(prof)
+    assert llm._max_retries == prof.llm.max_retries
+    assert llm._retry_backoff_base_seconds == prof.llm.retry_backoff_base_seconds
 
 
 def test_get_knowledge_backend_selects_gguf_for_papers_profile(monkeypatch):
@@ -43,6 +52,8 @@ def test_get_knowledge_backend_uses_profile_model_path_override(monkeypatch, tmp
         model_id=prof.llm.model_id,
         model_hf_repo=prof.llm.model_hf_repo,
         fallback_model_id=prof.llm.fallback_model_id,
+        max_retries=prof.llm.max_retries,
+        retry_backoff_base_seconds=prof.llm.retry_backoff_base_seconds,
     )
     custom_prof = replace(prof, llm=custom_llm)
 
@@ -63,6 +74,8 @@ def test_get_knowledge_backend_mlx_fallback(monkeypatch):
         model_id=prof.llm.model_id,
         model_hf_repo=prof.llm.model_hf_repo,
         fallback_model_id=prof.llm.fallback_model_id,
+        max_retries=prof.llm.max_retries,
+        retry_backoff_base_seconds=prof.llm.retry_backoff_base_seconds,
     )
     custom_prof = replace(prof, llm=mlx_llm)
 

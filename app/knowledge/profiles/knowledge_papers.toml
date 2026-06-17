@@ -7,6 +7,7 @@ max_clusters = 20
 min_cluster_size = 2
 claim_min_chars = 80
 claim_max_chars = 400
+max_sentences_per_claim = 3
 
 [tier1]
 max_output_tokens = 800
@@ -15,6 +16,7 @@ temperature = 0.2
 [tier2]
 max_output_tokens = 1200
 temperature = 0.3
+max_claims_per_paper = 5
 
 [llm]
 backend = "gguf"
@@ -22,6 +24,11 @@ model_path = ""
 model_id = "Qwen3-4B-Instruct-2507-Q4_K_M"
 model_hf_repo = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
 fallback_model_id = "mlx-community/Qwen3.5-4B-MLX-4bit"
+max_retries = 2
+retry_backoff_base_seconds = 0.5
+
+[parse]
+extensions = ["pdf", "docx", "txt", "md", "html"]
 
 [chunk]
 strategy = "markdown"

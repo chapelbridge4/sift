@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import BaseModel
@@ -50,6 +50,18 @@ def test_extract_prefers_generate_structured():
     assert out.title == "S"
     backend.generate_structured.assert_awaited_once()
     backend.generate.assert_not_awaited()
+
+
+def test_extract_backoff_between_retries():
+    backend = AsyncMock()
+    backend.generate = AsyncMock(side_effect=["not json", '{"title":"T","claims":[]}'])
+    llm = KnowledgeLLM(backend, max_retries=2, retry_backoff_base_seconds=0.01)
+
+    with patch("app.knowledge.backend.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        out = asyncio.run(llm.extract("p", Out, max_tokens=200, temperature=0.2))
+
+    assert out.title == "T"
+    mock_sleep.assert_awaited_once_with(0.01)
 
 
 def test_extract_strips_code_fences():

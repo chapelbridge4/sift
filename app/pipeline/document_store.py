@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from app.config import get_settings
-from app.knowledge.backend import KnowledgeLLM, get_knowledge_backend
+from app.knowledge.backend import build_knowledge_llm
 from app.knowledge.config import load_profile
 from app.knowledge.index import index_artifacts
 from app.knowledge.pipeline import KnowledgePipeline
@@ -153,7 +153,7 @@ class DocumentStore:
         pipeline = knowledge_pipeline or KnowledgePipeline(
             parser=self.document_parser,
             embedder=EmbeddingService(),
-            llm=KnowledgeLLM(get_knowledge_backend(profile)),
+            llm=build_knowledge_llm(profile),
             profile=profile,
             output_dir=output_root,
         )
@@ -246,7 +246,7 @@ class DocumentStore:
                     drill_down_top_k = profile.retrieval.drill_down_top_k
                 except FileNotFoundError:
                     topic_boost = settings.KNOWLEDGE_TOPIC_SCORE_BOOST
-                    drill_down_top_k = 5
+                    drill_down_top_k = settings.KNOWLEDGE_DRILL_DOWN_TOP_K
 
                 memories = apply_topic_score_boost(memories, topic_boost)
 

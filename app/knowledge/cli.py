@@ -11,15 +11,13 @@ from pathlib import Path
 from app.config import get_settings
 from app.kbforge.discover.scanner import scan_directory
 from app.knowledge import __version__
-from app.knowledge.backend import KnowledgeLLM, get_knowledge_backend
-from app.knowledge.config import load_profile
+from app.knowledge.backend import build_knowledge_llm
+from app.knowledge.config import KnowledgeProfile, load_profile
 from app.knowledge.index import index_artifacts
 from app.knowledge.pipeline import KnowledgePipeline
 from app.services.document_parser import DocumentParser
 from app.services.embeddings import EmbeddingService
 from app.services.qdrant_service import QdrantService
-
-_KNOWLEDGE_EXTENSIONS = ["pdf", "docx", "txt", "md", "html"]
 
 
 def _setup_logging(verbose: bool, quiet: bool) -> None:
@@ -32,9 +30,9 @@ def _setup_logging(verbose: bool, quiet: bool) -> None:
     logging.basicConfig(level=level, format="[knowledge] %(message)s")
 
 
-def scan_input_files(input_dir: Path) -> list[str]:
+def scan_input_files(input_dir: Path, profile: KnowledgeProfile) -> list[str]:
     """Discover ingestible files under --input (reuses kbforge scanner)."""
-    sources = scan_directory(input_dir.resolve(), _KNOWLEDGE_EXTENSIONS)
+    sources = scan_directory(input_dir.resolve(), profile.parse.extensions)
     return [doc.path for doc in sources]
 
 
@@ -53,19 +51,18 @@ def cmd_build(args: argparse.Namespace) -> int:
         logging.error("input directory does not exist: %s", input_dir)
         return 1
 
-    file_paths = scan_input_files(input_dir)
+    profile = load_profile(args.profile)
+    file_paths = scan_input_files(input_dir, profile)
     if not file_paths:
         logging.error("no ingestible files found under %s", input_dir)
         return 1
-
-    profile = load_profile(args.profile)
     output_dir = _resolve_output_dir(args)
     artifact_dir = output_dir / args.collection
 
     pipeline = KnowledgePipeline(
         parser=DocumentParser(),
         embedder=EmbeddingService(),
-        llm=KnowledgeLLM(get_knowledge_backend(profile)),
+        llm=build_knowledge_llm(profile),
         profile=profile,
         output_dir=output_dir,
         skip_hardware_guard=args.skip_hardware_guard,

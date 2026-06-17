@@ -74,12 +74,13 @@ class KnowledgePipeline:
             all_spans.extend(spans)
             log.info("tier=0 paper_id={} span_count={}", paper_id, len(spans))
 
+        if not self._skip_hardware_guard:
+            check_hardware_guard(self._hardware_guard_script)
+
         vectors = await self._embed_vectors([s.text for s in all_spans])
         manifest = cluster_spans(all_spans, profile=self._profile, vectors=vectors)
         self._write_cluster_manifest(job_dir, manifest)
-
-        if not self._skip_hardware_guard:
-            check_hardware_guard(self._hardware_guard_script)
+        await self._release_embedder()
 
         paper_summaries: list[PaperSummary] = []
         for doc in parsed_docs:
@@ -91,9 +92,10 @@ class KnowledgePipeline:
                 log.info("tier=1 paper_id={} degraded={}", paper_id, summary.degraded)
             except Exception as exc:
                 log.warning(
-                    "tier=1 paper_id={} llm_failed error={} — using tier0 fallback",
+                    "tier=1 paper_id={} llm_failed error={}: {} — using tier0 fallback",
                     paper_id,
                     type(exc).__name__,
+                    exc,
                 )
                 paper_summaries.append(paper_summary_from_spans(doc, spans))
 
@@ -113,9 +115,10 @@ class KnowledgePipeline:
                     )
                 except Exception as exc:
                     log.warning(
-                        "tier=2 cluster_id={} merge_failed error={} — degraded concat",
+                        "tier=2 cluster_id={} merge_failed error={}: {} — degraded concat",
                         cluster_id,
                         type(exc).__name__,
+                        exc,
                     )
                     topic_sheets.append(degraded_topic_sheet(cluster, paper_summaries))
         else:
@@ -159,6 +162,15 @@ class KnowledgePipeline:
             return result
 
         raise TypeError("embedder must provide embed_texts or generate_dense_embeddings")
+
+    async def _release_embedder(self) -> None:
+        """Unload embedder before LLM batch (one model at a time on M1 8 GB)."""
+        cleanup = getattr(self._embedder, "cleanup", None)
+        if cleanup is None:
+            return
+        result = cleanup()
+        if hasattr(result, "__await__"):
+            await result
 
     def _write_cluster_manifest(self, job_dir: Path, manifest: ClusterManifest) -> None:
         payload = {

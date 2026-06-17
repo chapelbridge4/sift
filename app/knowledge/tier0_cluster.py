@@ -12,8 +12,6 @@ from app.services.text_splitter import split_sentences
 # Sections processed first when present in parsed metadata.
 _PRIORITY_SECTION_NAMES = frozenset({"abstract", "conclusion", "summary"})
 
-_MAX_SENTENCES_PER_CLAIM = 3
-
 
 class ParsedSection(Protocol):
     name: str
@@ -55,7 +53,7 @@ def _group_sentences(
     *,
     min_chars: int,
     max_chars: int,
-    max_sentences: int = _MAX_SENTENCES_PER_CLAIM,
+    max_sentences: int,
 ) -> list[str]:
     """Group 1–*max_sentences* consecutive sentences into claim-sized spans."""
     spans: list[str] = []
@@ -93,6 +91,7 @@ def extract_claim_spans(parsed_doc: ParsedDoc, profile: KnowledgeProfile) -> lis
             split_sentences(_section_text(section)),
             min_chars=tier0.claim_min_chars,
             max_chars=tier0.claim_max_chars,
+            max_sentences=tier0.max_sentences_per_claim,
         ):
             spans.append(
                 ClaimSpan(

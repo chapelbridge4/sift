@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.knowledge.models import Claim, ClaimSpan, PaperSummary, TopicSheet, TopicSource
 from app.knowledge.tier1_extract import slugify
-from app.knowledge.tier2_merge import TopicCluster, _contributing_papers
+from app.knowledge.tier2_merge import TopicCluster, contributing_papers
 
 
 class KnowledgeHardwareError(Exception):
@@ -64,7 +64,7 @@ def degraded_topic_sheet(
     paper_summaries: list[PaperSummary],
 ) -> TopicSheet:
     """Tier 2 fallback: raw concatenation of cluster spans and paper digests."""
-    contributing = _contributing_papers(cluster, paper_summaries)
+    contributing = contributing_papers(cluster, paper_summaries)
     links_to = sorted({p.paper_id for p in contributing})
 
     body_lines = [f"# {cluster.label}", "", "## Cluster spans", ""]

@@ -202,6 +202,11 @@ class Settings(BaseSettings):
         ge=1.0,
         description="Post-retrieval score multiplier for doc_type=topic chunks",
     )
+    KNOWLEDGE_DRILL_DOWN_TOP_K: int = Field(
+        default=5,
+        ge=1,
+        description="Max topic chunks to read links_to from when profile lookup fails",
+    )
 
     # Document Processing
     CHUNK_SIZE: int = 512

@@ -44,7 +44,7 @@ def apply_topic_score_boost(
 
 def extract_drill_down_paper_ids(
     memories: list[dict[str, Any]],
-    top_k: int = 5,
+    top_k: int,
 ) -> list[str]:
     """Collect paper IDs from links_to on the top topic chunks."""
     paper_ids: list[str] = []

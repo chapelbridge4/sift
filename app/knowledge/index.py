@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from app.knowledge.artifacts import read_artifact
+from app.knowledge.artifacts import artifact_body_text, read_artifact
 from app.knowledge.config import KnowledgeProfile
 from app.knowledge.models import PaperSummary, TopicSheet
 from app.services.text_splitter import MarkdownChunker
@@ -51,8 +51,7 @@ async def index_artifacts(
         else:
             continue
 
-        full_text = path.read_text(encoding="utf-8")
-        chunks = chunker.chunk(full_text)
+        chunks = chunker.chunk(artifact_body_text(artifact))
 
         for chunk in chunks:
             meta = {

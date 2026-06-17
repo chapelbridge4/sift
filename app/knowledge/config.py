@@ -16,12 +16,14 @@ class Tier0Cfg:
     min_cluster_size: int
     claim_min_chars: int
     claim_max_chars: int
+    max_sentences_per_claim: int
 
 
 @dataclass(frozen=True)
 class TierLLMCfg:
     max_output_tokens: int
     temperature: float
+    max_claims_per_paper: int = 5
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,13 @@ class LLMCfg:
     model_id: str
     model_hf_repo: str
     fallback_model_id: str
+    max_retries: int = 2
+    retry_backoff_base_seconds: float = 0.5
+
+
+@dataclass(frozen=True)
+class ParseCfg:
+    extensions: list[str]
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,7 @@ class KnowledgeProfile:
     llm: LLMCfg
     chunk: ChunkCfg
     retrieval: RetrievalCfg
+    parse: ParseCfg
 
 
 def load_profile(name: str) -> KnowledgeProfile:
@@ -63,13 +73,19 @@ def load_profile(name: str) -> KnowledgeProfile:
     if not path.is_file():
         raise FileNotFoundError(f"unknown knowledge profile: {name!r} (looked in {path})")
     raw = tomllib.loads(path.read_text())
+    tier1_raw = dict(raw["tier1"])
+    tier2_raw = dict(raw["tier2"])
+    llm_raw = dict(raw["llm"])
+    parse_raw = raw.get("parse", {"extensions": ["pdf", "docx", "txt", "md", "html"]})
+
     return KnowledgeProfile(
         name=raw["profile"]["name"],
         description=raw["profile"]["description"],
         tier0=Tier0Cfg(**raw["tier0"]),
-        tier1=TierLLMCfg(**raw["tier1"]),
-        tier2=TierLLMCfg(**raw["tier2"]),
-        llm=LLMCfg(**raw["llm"]),
+        tier1=TierLLMCfg(**tier1_raw),
+        tier2=TierLLMCfg(**tier2_raw),
+        llm=LLMCfg(**llm_raw),
         chunk=ChunkCfg(**raw["chunk"]),
         retrieval=RetrievalCfg(**raw["retrieval"]),
+        parse=ParseCfg(**parse_raw),
     )
