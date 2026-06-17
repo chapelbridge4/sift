@@ -500,10 +500,16 @@ class LLMService:
                     tokenizer,
                     **generate_args
                 )
+            else:
+                raise ValueError(
+                    "generate_with_image requires a readable image; got "
+                    f"image_path={image_path!r}, image_url={image_url!r}"
+                )
 
             text = result.text if hasattr(result, 'text') else str(result)
+            text = self._sanitize_qwen_output(text)
             text = LLMService._sanitize_output(text)
-            valid, reason = _quality.is_valid_response(text)
+            valid, reason = self._passes_validity(text, enable_thinking)
             if not valid:
                 raise ValueError(f"Invalid model output: {reason}")
             logger.debug(f"Generated vision response: {len(text)} characters")
