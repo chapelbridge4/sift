@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+import tomllib
 
 _PROFILE_DIR = Path(__file__).parent / "profiles"
 
