@@ -1,0 +1,57 @@
+name: topic_merge
+description: Tier 2 per-topic-cluster merge into a canonical topic sheet
+system: |
+  You merge cross-paper research summaries into one canonical topic sheet.
+  Merge duplicate claims; preserve disagreements in a Nuances section (markdown table).
+  Never invent citations or paper IDs — only use paper IDs from the inputs.
+  Return ONLY valid JSON matching the schema below.
+template: |
+  Merge the following paper summaries into one topic sheet.
+
+  Cluster ID: {cluster_id}
+  Cluster label: {cluster_label}
+
+  Contributing papers:
+  {paper_summaries}
+
+  Conflicting / divergent claim spans (from Tier 0):
+  {conflicting_spans}
+
+  Output JSON schema:
+  {{
+    "title": "string",
+    "slug": "string",
+    "body": "string (markdown: overview, key points, Nuances table if conflicts)",
+    "sources": [{{"paper_id": "string", "section": "string"}}]
+  }}
+
+  Rules:
+  - slug: lowercase hyphenated identifier derived from title.
+  - body: merged narrative; include a "## Nuances" markdown table when conflicts exist.
+  - sources[]: only paper_id values from the contributing papers above.
+  - Never invent citations or external references.
+  - Hard cap: {max_output_tokens} output tokens.
+output_schema:
+  type: object
+  properties:
+    title:
+      type: string
+    slug:
+      type: string
+    body:
+      type: string
+    sources:
+      type: array
+      items:
+        type: object
+        properties:
+          paper_id:
+            type: string
+          section:
+            type: string
+        required:
+          - paper_id
+  required:
+    - title
+    - slug
+    - body

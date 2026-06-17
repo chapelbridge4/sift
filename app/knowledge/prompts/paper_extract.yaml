@@ -1,0 +1,70 @@
+name: paper_extract
+description: Tier 1 per-paper structured extract
+system: |
+  You are a research-paper analyst. Extract factual claims only from the provided
+  material. Never invent citations, authors, or results not present in the input.
+  Return ONLY valid JSON matching the schema below.
+template: |
+  Extract a structured summary for this paper.
+
+  Paper ID: {paper_id}
+  Title: {title}
+  Authors: {authors}
+  Source file: {source_file}
+
+  Section outline:
+  {section_outline}
+
+  Top claim spans from Tier 0 clustering:
+  {claim_spans}
+
+  Output JSON schema:
+  {{
+    "title": "string",
+    "authors": ["string"],
+    "claims": [{{"text": "string", "section": "string"}}],
+    "methods": "string",
+    "results": "string",
+    "limitations": "string",
+    "topic_tags": ["string"]
+  }}
+
+  Rules:
+  - Use only information from the inputs above.
+  - claims[]: 3–8 concise factual claims with section attribution.
+  - topic_tags[]: 1–5 short topic labels for cross-paper clustering.
+  - Hard cap: {max_output_tokens} output tokens.
+output_schema:
+  type: object
+  properties:
+    title:
+      type: string
+    authors:
+      type: array
+      items:
+        type: string
+    claims:
+      type: array
+      items:
+        type: object
+        properties:
+          text:
+            type: string
+          section:
+            type: string
+        required:
+          - text
+    methods:
+      type: string
+    results:
+      type: string
+    limitations:
+      type: string
+    topic_tags:
+      type: array
+      items:
+        type: string
+  required:
+    - title
+    - claims
+    - topic_tags
