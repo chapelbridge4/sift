@@ -12,6 +12,12 @@ from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
 
+from app.knowledge.retrieval import (
+    KNOWLEDGE_CITATION_INSTRUCTION,
+    build_retrieval_sources,
+    infer_retrieval_layers,
+    is_knowledge_collection,
+)
 from app.pipeline.conversation_memory import ConversationMemory
 from app.pipeline.document_store import DocumentStore
 from app.pipeline.reranker import Reranker
@@ -78,7 +84,8 @@ class RagOrchestrator:
         temperature: Optional[float] = None,
         model_profile: Optional[str] = None,
         fusion_method: str = "rrf",
-        use_llm: bool = True
+        use_llm: bool = True,
+        drill_down: bool = False,
     ) -> Dict[str, Any]:
         """
         Perform complex reasoning using retrieved context (executive function).
@@ -111,7 +118,8 @@ class RagOrchestrator:
                 query=query,
                 top_k=top_k,
                 use_hybrid=use_hybrid,
-                fusion_method=fusion_method
+                fusion_method=fusion_method,
+                drill_down=drill_down,
             )
 
             # Step 2: Evaluate importance and rank (Reranker processing)
@@ -125,6 +133,14 @@ class RagOrchestrator:
                 ranked_memories = []
 
             # Step 3: Check if LLM generation is needed
+            knowledge_collection = is_knowledge_collection(ranked_memories)
+            retrieval_layers = (
+                infer_retrieval_layers(ranked_memories) if knowledge_collection else []
+            )
+            sources = (
+                build_retrieval_sources(ranked_memories) if knowledge_collection else []
+            )
+
             if not use_llm:
                 logger.info("Orchestrator: use_llm=False, returning retrieved documents without generation")
                 return {
@@ -132,7 +148,9 @@ class RagOrchestrator:
                     "retrieved_documents": ranked_memories,
                     "num_documents_used": len(ranked_memories),
                     "conversation_id": conversation_id,
-                    "model_used": None
+                    "model_used": None,
+                    "retrieval_layers": retrieval_layers,
+                    "sources": sources,
                 }
 
             # Step 4: Get conversation context (Conversation Memory)
@@ -156,7 +174,8 @@ class RagOrchestrator:
                 ranked_memories=ranked_memories,
                 conversation_history=conversation_history,
                 temperature=temperature,
-                model_profile=model_profile
+                model_profile=model_profile,
+                knowledge_collection=knowledge_collection,
             )
 
             # Step 6: Update conversation memory
@@ -177,7 +196,9 @@ class RagOrchestrator:
                 "retrieved_documents": ranked_memories,
                 "num_documents_used": len(ranked_memories),
                 "conversation_id": conversation_id,
-                "model_used": model_used
+                "model_used": model_used,
+                "retrieval_layers": retrieval_layers,
+                "sources": sources,
             }
 
         except Exception as e:
@@ -190,7 +211,8 @@ class RagOrchestrator:
         ranked_memories: List[Dict[str, Any]],
         conversation_history: Optional[List[Dict[str, str]]],
         temperature: Optional[float],
-        model_profile: Optional[str] = None
+        model_profile: Optional[str] = None,
+        knowledge_collection: bool = False,
     ) -> tuple[str, str]:
         """
         Integrate retrieved information and generate reasoned response.
@@ -215,12 +237,17 @@ class RagOrchestrator:
         model_name, model_config = self.llm_service.get_model_for_request(model_profile)
 
         # Generate response using LLM with specified model profile
+        extra_system_instruction = (
+            KNOWLEDGE_CITATION_INSTRUCTION if knowledge_collection else None
+        )
+
         answer = await self.llm_service.generate_rag_response(
             query=query,
             retrieved_contexts=contexts,
             conversation_history=conversation_history,
             temperature=temperature,
-            model_profile=model_profile
+            model_profile=model_profile,
+            extra_system_instruction=extra_system_instruction,
         )
 
         return answer, model_name

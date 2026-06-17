@@ -373,7 +373,8 @@ async def query(request: QueryRequest):
             conversation_id=request.conversation_id,
             temperature=None,
             model_profile=effective_model_profile,
-            use_llm=request.use_llm if request.use_llm is not None else True
+            use_llm=request.use_llm if request.use_llm is not None else True,
+            drill_down=request.drill_down,
         )
 
         processing_time = time.time() - start_time

@@ -128,6 +128,10 @@ class QueryRequest(BaseModel):
     conversation_id: Optional[str] = None
     include_metadata: Optional[bool] = Field(default=True)
     model_profile: Optional[ModelProfile] = Field(default=None, description="LLM model profile to use (fast/balanced/quality)")
+    drill_down: bool = Field(
+        default=False,
+        description="After topic retrieval, fetch linked paper_summary chunks via links_to",
+    )
 
 
 class RetrievedDocument(BaseModel):
