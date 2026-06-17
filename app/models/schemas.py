@@ -129,15 +129,15 @@ class QueryResponse(BaseModel):
 
 
 # Reranker importance-scoring schemas
-class EmotionalContext(BaseModel):
+class ImportanceContext(BaseModel):
     """Importance-scoring context for the reranker."""
     importance_score: float = Field(ge=0.0, le=1.0)
     recency_score: float = Field(ge=0.0, le=1.0)
     relevance_score: float = Field(ge=0.0, le=1.0)
 
 
-class WorkingMemoryContext(BaseModel):
-    """Context stored in working memory."""
+class ConversationContext(BaseModel):
+    """Conversation context (history + metadata)."""
     conversation_id: str
     messages: List[Dict[str, str]]
     timestamp: datetime

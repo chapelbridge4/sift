@@ -4,18 +4,18 @@ from .schemas import (
     CollectionCreate,
     CollectionDelete,
     CollectionResponse,
+    ConversationContext,
     DocumentMetadata,
-    EmotionalContext,
     FileFormat,
     FusionMethod,
     HealthResponse,
+    ImportanceContext,
     ModelProfile,
     QueryRequest,
     QueryResponse,
     RetrievedDocument,
     UploadFilesRequest,
     UploadFilesResponse,
-    WorkingMemoryContext,
 )
 
 __all__ = [
@@ -31,7 +31,7 @@ __all__ = [
     "QueryRequest",
     "QueryResponse",
     "RetrievedDocument",
-    "EmotionalContext",
-    "WorkingMemoryContext",
+    "ImportanceContext",
+    "ConversationContext",
     "HealthResponse",
 ]

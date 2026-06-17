@@ -716,6 +716,12 @@ Please provide a concise answer (2-4 sentences) based on the context above."""
         """
         Stream text generation (for future streaming endpoints).
 
+        MLX-Metal GPU ops are thread-affine, so the stream is produced on the
+        dedicated single MLX thread (the one that owns the model) and bridged to
+        this async caller via a thread-safe queue. Iterating ``mlx_vlm`` directly
+        on the event-loop thread would raise "There is no Stream(gpu, 1) in
+        current thread" under a server (same root cause as the load/generate path).
+
         Args:
             prompt: User prompt
             system_prompt: Optional system prompt
@@ -729,35 +735,49 @@ Please provide a concise answer (2-4 sentences) based on the context above."""
 
         logger.debug(f"Starting streaming generation for prompt_length={len(prompt)}")
 
-        try:
-            import mlx_vlm
+        model, tokenizer = self._current_model
 
-            model, tokenizer = self._current_model
+        full_prompt = prompt
+        if system_prompt:
+            full_prompt = f"{system_prompt}\n\n{prompt}"
 
-            full_prompt = prompt
-            if system_prompt:
-                full_prompt = f"{system_prompt}\n\n{prompt}"
+        generate_args = self._build_generate_args(
+            full_prompt,
+            temperature,
+            self.current_config.get("max_tokens", 500),
+            enable_thinking,
+        )
 
-            generate_args = self._build_generate_args(
-                full_prompt,
-                temperature,
-                self.current_config.get("max_tokens", 500),
-                enable_thinking
-            )
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
 
-            stream = mlx_vlm.stream_generate(
-                model, tokenizer, **generate_args
-            )
+        def _produce() -> None:
+            # Runs on the single dedicated MLX thread.
+            try:
+                import mlx_vlm
 
-            for chunk in stream:
-                if hasattr(chunk, 'text'):
-                    yield chunk.text
-                elif isinstance(chunk, str):
-                    yield chunk
+                for chunk in mlx_vlm.stream_generate(model, tokenizer, **generate_args):
+                    text = getattr(chunk, "text", chunk if isinstance(chunk, str) else None)
+                    if text:
+                        loop.call_soon_threadsafe(queue.put_nowait, text)
+            except Exception as e:  # surface to the async consumer
+                loop.call_soon_threadsafe(queue.put_nowait, e)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, done)
 
-        except Exception as e:
-            logger.error(f"Error during streaming generation: {str(e)}")
-            raise
+        # Submit onto the dedicated MLX executor (NOT the default thread pool),
+        # so the stream shares the one Metal thread the model lives on.
+        self._get_mlx_executor().submit(_produce)
+
+        while True:
+            item = await queue.get()
+            if item is done:
+                break
+            if isinstance(item, Exception):
+                logger.error(f"Error during streaming generation: {item}")
+                raise item
+            yield item
 
     async def health_check(self) -> bool:
         """Check if MLX-VLM models are loadable and generation works."""

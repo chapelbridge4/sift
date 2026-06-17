@@ -111,10 +111,10 @@ class Settings(BaseSettings):
             "model": "mlx-community/Qwen3.5-4B-MLX-4bit",
             "backend": "mlx-vlm",
             "context": 256000,
-            "max_tokens": 800,
+            "max_tokens": 1200,  # headroom so the <think> block can't starve the answer
             "temperature": 0.7,
             "thinking": True,
-            "thinking_budget": 300,
+            "thinking_budget": 300,  # advisory only — mlx-vlm single-shot generate has no thinking cutoff
             "repetition_penalty": 1.15,
             "description": "same model as balanced but with --enable-thinking for deep multi-hop RAG reasoning",
         },

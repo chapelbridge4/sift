@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from app.config import get_settings
-from app.models.schemas import WorkingMemoryContext
+from app.models.schemas import ConversationContext
 
 
 class ConversationMemory:
@@ -314,15 +314,15 @@ Summary:"""
             "context_window_size": self.context_window_size
         }
 
-    async def export_conversation(self, conversation_id: str) -> Optional[WorkingMemoryContext]:
+    async def export_conversation(self, conversation_id: str) -> Optional[ConversationContext]:
         """
-        Export conversation as WorkingMemoryContext object.
+        Export conversation as ConversationContext object.
 
         Args:
             conversation_id: Conversation ID
 
         Returns:
-            WorkingMemoryContext or None
+            ConversationContext or None
         """
         if conversation_id not in self.conversations:
             return None
@@ -330,7 +330,7 @@ Summary:"""
         messages = await self.get_conversation_history(conversation_id, include_metadata=True)
         meta = self.metadata[conversation_id]
 
-        return WorkingMemoryContext(
+        return ConversationContext(
             conversation_id=conversation_id,
             messages=messages,
             timestamp=datetime.fromisoformat(meta["last_accessed"]),

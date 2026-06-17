@@ -13,7 +13,12 @@ dedicated single-worker executor so load/warmup/generate all run on the same
 thread, avoiding "There is no Stream(gpu, 1) in current thread."
 """
 
+import asyncio
 import concurrent.futures
+import threading
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.services.llm_service import LLMService
 
@@ -62,3 +67,60 @@ def test_llm_service_owns_single_worker_mlx_executor():
     assert ex._max_workers == 1
     # Same executor instance is reused (one thread for the lifetime).
     assert svc._get_mlx_executor() is ex
+
+
+class _Chunk:
+    def __init__(self, text):
+        self.text = text
+
+
+def _collect(agen):
+    async def run():
+        return [chunk async for chunk in agen]
+    return asyncio.run(run())
+
+
+def _service_for_stream():
+    svc = LLMService()
+    svc.initialize = AsyncMock()
+    svc._current_model = (MagicMock(), MagicMock())
+    svc.current_config = {"max_tokens": 16}
+    return svc
+
+
+def test_stream_generate_runs_on_mlx_thread_and_yields():
+    """Bug-C class: streaming must run on the dedicated MLX thread (not the
+    event-loop thread) and yield chunks in order."""
+    svc = _service_for_stream()
+    seen_threads = []
+
+    def fake_stream(model, tokenizer, **kwargs):
+        seen_threads.append(threading.current_thread().name)
+        yield _Chunk("Hello ")
+        yield _Chunk("world")
+
+    try:
+        with patch("mlx_vlm.stream_generate", fake_stream):
+            out = _collect(svc.stream_generate("hi"))
+        assert out == ["Hello ", "world"]
+        assert seen_threads and seen_threads[0].startswith("mlx"), (
+            f"stream must run on the MLX executor thread, ran on {seen_threads}"
+        )
+    finally:
+        svc.close()
+
+
+def test_stream_generate_propagates_errors():
+    """An error raised inside the MLX stream surfaces to the async caller."""
+    svc = _service_for_stream()
+
+    def boom(model, tokenizer, **kwargs):
+        yield _Chunk("partial")
+        raise RuntimeError("stream blew up")
+
+    try:
+        with patch("mlx_vlm.stream_generate", boom):
+            with pytest.raises(RuntimeError, match="stream blew up"):
+                _collect(svc.stream_generate("hi"))
+    finally:
+        svc.close()

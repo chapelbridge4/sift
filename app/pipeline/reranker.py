@@ -16,7 +16,7 @@ import psutil
 from loguru import logger
 
 from app.config import get_settings
-from app.models.schemas import EmotionalContext
+from app.models.schemas import ImportanceContext
 
 try:
     from sentence_transformers import CrossEncoder
@@ -328,7 +328,7 @@ class Reranker:
             doc_with_importance['importance_score'] = importance_score
 
             # Store emotional context
-            doc_with_importance['emotional_context'] = EmotionalContext(
+            doc_with_importance['emotional_context'] = ImportanceContext(
                 importance_score=importance_score,
                 recency_score=self._calculate_recency_score(doc, current_time),
                 relevance_score=self._normalize_relevance_score(doc.get('score', 0.0))
