@@ -1,0 +1,33 @@
+[profile]
+name = "papers"
+description = "Research PDF corpus — topic sheets + paper summaries"
+
+[tier0]
+max_clusters = 20
+min_cluster_size = 2
+claim_min_chars = 80
+claim_max_chars = 400
+
+[tier1]
+max_output_tokens = 800
+temperature = 0.2
+
+[tier2]
+max_output_tokens = 1200
+temperature = 0.3
+
+[llm]
+backend = "gguf"
+model_path = ""
+model_id = "Qwen3-4B-Instruct-2507-Q4_K_M"
+model_hf_repo = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+fallback_model_id = "mlx-community/Qwen3.5-4B-MLX-4bit"
+
+[chunk]
+strategy = "markdown"
+chunk_size = 512
+chunk_overlap = 128
+
+[retrieval]
+topic_score_boost = 1.2
+drill_down_top_k = 5
