@@ -71,11 +71,31 @@ class DocumentMetadata(BaseModel):
     importance_score: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
+class KnowledgeStatsResponse(BaseModel):
+    """Stats from make_knowledge corpus-intelligence ingest."""
+    topics: int = 0
+    papers: int = 0
+    chunks: int = 0
+    links: int = 0
+
+
 class UploadFilesRequest(BaseModel):
     """Request to upload files to a collection."""
     collection_name: str
     file_paths: List[str] = Field(..., min_length=1)
     batch_size: Optional[int] = Field(default=32, ge=1, le=100)
+    make_knowledge: bool = Field(
+        default=False,
+        description="Run corpus-intelligence pipeline (topic sheets + paper summaries)",
+    )
+    knowledge_profile: Optional[str] = Field(
+        default="papers",
+        description="Knowledge profile name (profiles/knowledge_<name>.toml)",
+    )
+    knowledge_model: Optional[str] = Field(
+        default=None,
+        description="Optional GGUF model path override for this ingest job only",
+    )
 
     @field_validator('file_paths')
     @classmethod
@@ -93,6 +113,8 @@ class UploadFilesResponse(BaseModel):
     failed_files: List[str] = []
     processing_time_seconds: float
     message: str
+    knowledge: Optional[KnowledgeStatsResponse] = None
+    knowledge_built: bool = False
 
 
 # Query Schemas

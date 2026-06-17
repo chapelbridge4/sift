@@ -7,11 +7,19 @@ Responsible for:
 - Collection lifecycle management
 """
 
+from dataclasses import replace
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from app.config import get_settings
+from app.knowledge.backend import KnowledgeLLM, get_knowledge_backend
+from app.knowledge.config import load_profile
+from app.knowledge.index import index_artifacts
+from app.knowledge.pipeline import KnowledgePipeline
 from app.services.document_parser import DocumentParser
+from app.services.embeddings import EmbeddingService
 from app.services.qdrant_service import QdrantService
 
 
@@ -39,7 +47,12 @@ class DocumentStore:
         self,
         collection_name: str,
         file_paths: List[str],
-        batch_size: int = 32
+        batch_size: int = 32,
+        *,
+        make_knowledge: bool = False,
+        knowledge_profile: Optional[str] = None,
+        knowledge_model: Optional[str] = None,
+        knowledge_pipeline: Optional[KnowledgePipeline] = None,
     ) -> Dict[str, Any]:
         """
         Form new memories by indexing documents (long-term potentiation).
@@ -48,11 +61,25 @@ class DocumentStore:
             collection_name: Memory collection name
             file_paths: Paths to documents to index
             batch_size: Batch size for processing
+            make_knowledge: Run corpus-intelligence pipeline (topic sheets + paper summaries)
+            knowledge_profile: Profile name (e.g. papers)
+            knowledge_model: Optional GGUF path override for this ingest job only
+            knowledge_pipeline: Injected pipeline for tests (DI)
 
         Returns:
             Dictionary with indexing statistics
         """
         logger.info(f"DocumentStore: Forming new memories from {len(file_paths)} documents")
+
+        if make_knowledge:
+            return await self._form_knowledge_memories(
+                collection_name=collection_name,
+                file_paths=file_paths,
+                batch_size=batch_size,
+                knowledge_profile=knowledge_profile,
+                knowledge_model=knowledge_model,
+                knowledge_pipeline=knowledge_pipeline,
+            )
 
         try:
             # Parse documents into chunks (encoding)
@@ -90,6 +117,70 @@ class DocumentStore:
         except Exception as e:
             logger.error(f"DocumentStore: Error forming memories: {str(e)}")
             raise
+
+    async def _form_knowledge_memories(
+        self,
+        *,
+        collection_name: str,
+        file_paths: List[str],
+        batch_size: int,
+        knowledge_profile: Optional[str],
+        knowledge_model: Optional[str],
+        knowledge_pipeline: Optional[KnowledgePipeline],
+    ) -> Dict[str, Any]:
+        """make_knowledge branch: Tier 0→2 artifacts, index canonical markdown only."""
+        settings = get_settings()
+        profile_name = knowledge_profile or settings.KNOWLEDGE_PROFILE
+        profile = load_profile(profile_name)
+
+        if knowledge_model:
+            profile = replace(profile, llm=replace(profile.llm, model_path=knowledge_model))
+
+        if settings.KNOWLEDGE_OUTPUT_DIR:
+            output_root = Path(settings.KNOWLEDGE_OUTPUT_DIR).expanduser()
+        else:
+            output_root = Path(settings.ALLOWED_CORPUS_DIR) / ".knowledge"
+
+        artifact_dir = output_root / collection_name
+
+        pipeline = knowledge_pipeline or KnowledgePipeline(
+            parser=self.document_parser,
+            embedder=EmbeddingService(),
+            llm=KnowledgeLLM(get_knowledge_backend(profile)),
+            profile=profile,
+            output_dir=output_root,
+        )
+
+        stats = await pipeline.run(file_paths, collection_name)
+
+        indexed = await index_artifacts(
+            collection_name=collection_name,
+            artifact_dir=artifact_dir,
+            profile=profile,
+            qdrant_service=self.qdrant_service,
+            batch_size=batch_size,
+        )
+        stats = stats.model_copy(update={"chunks": indexed})
+
+        logger.info(
+            "DocumentStore: Knowledge ingest complete topics={} papers={} chunks={}",
+            stats.topics,
+            stats.papers,
+            stats.chunks,
+        )
+
+        return {
+            "success": True,
+            "total_chunks": indexed,
+            "processed_files": len(file_paths),
+            "knowledge_built": True,
+            "knowledge_profile": profile.name,
+            "knowledge": stats.model_dump(),
+            "message": (
+                f"Knowledge pipeline indexed {indexed} artifact chunks "
+                f"({stats.papers} papers, {stats.topics} topics)"
+            ),
+        }
 
     async def recall_memories(
         self,
