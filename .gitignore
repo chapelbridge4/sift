@@ -31,6 +31,8 @@ app/tuning/results/
 # Local document corpora and generated design artifacts
 papers/
 mockups/
+data/corpus/.knowledge/
+.knowledge/
 
 # Downloaded benchmark datasets (BEIR: scifact, nfcorpus, ...) — fetched on demand, never committed
 datasets/

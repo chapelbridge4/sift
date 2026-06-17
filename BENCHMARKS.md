@@ -92,3 +92,14 @@ pool, so RSS is the correct proxy for total memory pressure on Apple Silicon.
 ```
 
 Generated: 2026-06-14, sift-flagship-v0.1 branch.
+
+---
+
+## make_knowledge (pending acceptance run)
+
+Corpus-intelligence ingest vs raw PDF chunk baseline on the same paper corpus. Knowledge row is **TBD** until a real acceptance run with `./scripts/hardware_guard.sh` + `python -m app.knowledge build`.
+
+| Mode            | Chunks  | recall@10 | Notes                                      |
+|-----------------|--------:|----------:|--------------------------------------------|
+| raw ingest      | 66,941  | 0.254     | Baseline (keyword-recall proxy, same corpus) |
+| make_knowledge  | TBD     | TBD       | Target: <1,000 chunks, >0.50 recall        |

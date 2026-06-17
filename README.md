@@ -112,6 +112,19 @@ The multi-stage report ([reports/triage/scifact_full_sample.md](reports/triage/s
 
 ## kbforge — retrieval-first KB builder
 
+**kbforge** (`app/kbforge/`) is the offline **primitives** layer: parse → chunk → embed → export an ingest bundle. It does not call an LLM at build time.
+
+**knowledge** (`app/knowledge/`) is **corpus intelligence** on top of those primitives: Tier 0 claim clustering → Tier 1/2 LLM extract/merge → canonical topic sheets + paper summaries only (not raw PDF chunks). Enable via `POST /upload_files` with `make_knowledge=true`, or build offline:
+
+```bash
+.venv/bin/python -m app.knowledge build \
+  --input ./papers \
+  --collection ai_papers_knowledge \
+  --profile papers
+```
+
+Artifacts land under `data/corpus/.knowledge/<collection>/` (gitignored). Run `./scripts/hardware_guard.sh` before real LLM batches on M1 8 GB.
+
 Build optimized knowledge bases **before** indexing (no LLM at build time, M1 8GB profile):
 
 ```bash
@@ -163,6 +176,7 @@ Key directories:
 - `app/pipeline/`: RAG orchestration modules (orchestrator, document store, reranker, conversation memory).
 - `app/services/`: Qdrant, embedding, parsing, and generation services.
 - `app/kbforge/`: offline KB builder (parse → chunk → embed → ingest bundle).
+- `app/knowledge/`: corpus intelligence pipeline (topic sheets + paper summaries, `make_knowledge`).
 - `app/tuning/`: local benchmarking and quality utilities.
 - `scripts/run_benchmark.py`: reproducible local benchmark harness.
 - `tests/`: focused unit tests.
