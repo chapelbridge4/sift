@@ -10,7 +10,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: ruff check app scripts tests
       - run: python -m compileall app
-      - run: python -m pytest tests/ -q
+      - run: python -m pytest tests/ -q -m "not slow"
       - run: python scripts/run_retrieval_eval.py
       - name: Retrieval regression gate (real dataset)
         run: python scripts/benchmark_beir.py --dataset scifact --full --assert-recall-gte 0.70

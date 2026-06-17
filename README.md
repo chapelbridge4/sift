@@ -105,10 +105,33 @@ Scope note (honest): that run feeds only retrieval signals (`answer=None`), so t
 
 To exercise more of the pipeline, the same runner takes `--rerank` and `--with-answers`:
 
-- `--rerank` runs the brain cross-encoder reranker (`app/brain/amygdala.py`) over each query's retrieved candidates and feeds the reranked doc_id order into the classifier, so **reranking-stage** demotions (`RELEVANT_DEMOTED`) surface alongside retrieval misses. A small (~80 MB) cross-encoder downloads on first use; CPU-only.
+- `--rerank` runs the cross-encoder reranker (`app/pipeline/reranker.py`) over each query's retrieved candidates and feeds the reranked doc_id order into the classifier, so **reranking-stage** demotions (`RELEVANT_DEMOTED`) surface alongside retrieval misses. A small (~80 MB) cross-encoder downloads on first use; CPU-only.
 - `--with-answers` additionally generates a real answer per query via the local backend and enables the optional LLM judge, so **generation-stage** subtypes (`UNFAITHFUL` / `INCOMPLETE` / `CONTEXT_IGNORED`) can be disambiguated. Requires a downloaded GGUF/MLX model and is slow; it skips gracefully per-query when no model is available.
 
 The multi-stage report ([reports/triage/scifact_full_sample.md](reports/triage/scifact_full_sample.md)) opens with an **active-signals line** (retrieved / reranked / answers / judge) so the distribution is honestly scoped — a stage with no live signal cannot fail there. With `--rerank` (and optionally `--with-answers`) the full 16-type taxonomy is genuinely exercised, not just asserted.
+
+## kbforge — retrieval-first KB builder
+
+Build optimized knowledge bases **before** indexing (no LLM at build time, M1 8GB profile):
+
+```bash
+.venv/bin/python -m app.kbforge build \
+  --input ./examples/corpus \
+  --output ./data/kb_bundles/v1 \
+  --profile profiles/m1_8gb.toml \
+  --skip-embed --skip-eval   # safe when RAM tight / Claude parallel
+
+# Full pipeline (downloads MiniLM once):
+.venv/bin/python -m app.kbforge build \
+  --input ./examples/corpus \
+  --output ./data/kb_bundles/v1 \
+  --profile profiles/m1_8gb.toml \
+  --probes ./data/evaluation/probes.json
+```
+
+Then copy `data/kb_bundles/v1/ingest/corpus/` → `data/corpus/` and `POST /upload_files`.
+
+Agent handoff log: [`grok_sal.md`](grok_sal.md)
 
 ## Roadmap
 
@@ -125,22 +148,21 @@ The multi-stage report ([reports/triage/scifact_full_sample.md](reports/triage/s
 
 ```text
 FastAPI API
-  -> PrefrontalCortex: orchestrates retrieval, ranking, working memory, generation
-  -> Hippocampus: collection management, document parsing, Qdrant indexing/search
-  -> Amygdala: importance scoring, optional reranking/diversification
-  -> WorkingMemory: in-memory conversation history
-  -> Inference backend: GGUF/llama.cpp (default, cross-platform) or MLX (optional Apple fast-path)
+  -> RagOrchestrator: orchestrates retrieval, ranking, conversation memory, generation
+  -> DocumentStore: collection management, document parsing, Qdrant indexing/search
+  -> Reranker: importance scoring, optional reranking/diversification
+  -> ConversationMemory: in-memory conversation history
+  -> Inference backend: MLX (default for `/query` RAG path on Apple Silicon) or GGUF/llama.cpp (direct/experimental)
   -> Qdrant: vector and sparse payload storage (embedded by default; server optional)
 ```
-
-> Design rationale: the module names (PrefrontalCortex/Hippocampus/Amygdala/WorkingMemory) are a memory-systems analogy for the orchestration roles — an internal design choice, not the product claim. The product claim is the engineering: local-first, low-hardware, honestly measured.
 
 Key directories:
 
 - `app/main.py`: FastAPI app and HTTP endpoints.
 - `app/models/schemas.py`: Pydantic request/response contracts.
-- `app/brain/`: orchestration modules.
+- `app/pipeline/`: RAG orchestration modules (orchestrator, document store, reranker, conversation memory).
 - `app/services/`: Qdrant, embedding, parsing, and generation services.
+- `app/kbforge/`: offline KB builder (parse → chunk → embed → ingest bundle).
 - `app/tuning/`: local benchmarking and quality utilities.
 - `scripts/run_benchmark.py`: reproducible local benchmark harness.
 - `tests/`: focused unit tests.
@@ -149,7 +171,7 @@ Key directories:
 
 - Python 3.11+.
 - No Docker required — Qdrant runs embedded by default. (Docker only if you opt into a Qdrant server.)
-- Any OS for the default GGUF/llama.cpp backend (Windows / Linux / macOS, CPU works). macOS Apple Silicon only for the optional MLX fast-path.
+- macOS Apple Silicon for the default MLX RAG path (`INFERENCE_BACKEND=mlx`). GGUF/llama.cpp works cross-platform (Windows / Linux / macOS, CPU-capable) for direct generation and planned offline pipelines (e.g. `make_knowledge`).
 - Disk space for one GGUF model (~2.5 GB for Qwen3-4B Q4_K_M) and embedding caches.
 
 ## Setup
@@ -209,7 +231,7 @@ Copy `.env.example` to `.env` and adjust local values. Common settings:
 | `CHUNK_OVERLAP` | `128` | Overlap for large chunks |
 | `MAX_FILE_SIZE_MB` | `50` | Per-file parser limit |
 
-The default backend is **GGUF/llama.cpp** (`INFERENCE_BACKEND=gguf`, model `Qwen3-4B-Q4_K_M.gguf`). The MLX profiles below apply only when `INFERENCE_BACKEND=mlx` (Apple Silicon); they use `mlx-community/Qwen3.5-4B-MLX-4bit` and differ by token cap and thinking mode:
+The default RAG backend is **MLX** (`INFERENCE_BACKEND=mlx`, Apple Silicon). Profiles use `mlx-community/Qwen3.5-4B-MLX-4bit` and differ by token cap and thinking mode. For **GGUF/llama.cpp** (`INFERENCE_BACKEND=gguf`, model `Qwen3-4B-Q4_K_M.gguf`), use direct generation APIs — the full profile-based `/query` path requires MLX unless the backend implements the full `RagBackend` contract:
 
 | Profile | Max Tokens | Thinking | Intended Use |
 | --- | ---: | --- | --- |
