@@ -18,6 +18,13 @@ from app.knowledge.backend import KnowledgeLLM, get_knowledge_backend
 from app.knowledge.config import load_profile
 from app.knowledge.index import index_artifacts
 from app.knowledge.pipeline import KnowledgePipeline
+from app.knowledge.retrieval import (
+    apply_topic_score_boost,
+    build_paper_drill_down_filter,
+    extract_drill_down_paper_ids,
+    is_knowledge_collection,
+    merge_drill_down_memories,
+)
 from app.services.document_parser import DocumentParser
 from app.services.embeddings import EmbeddingService
 from app.services.qdrant_service import QdrantService
@@ -188,7 +195,8 @@ class DocumentStore:
         query: str,
         top_k: int = 10,
         use_hybrid: bool = True,
-        fusion_method: str = "rrf"
+        fusion_method: str = "rrf",
+        drill_down: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Recall memories through retrieval (memory recall/recognition).
@@ -221,6 +229,57 @@ class DocumentStore:
                     query_text=query,
                     top_k=top_k
                 )
+
+            if is_knowledge_collection(memories):
+                settings = get_settings()
+                profile_name = next(
+                    (
+                        m.get("metadata", {}).get("knowledge_profile")
+                        for m in memories
+                        if m.get("metadata", {}).get("knowledge_profile")
+                    ),
+                    settings.KNOWLEDGE_PROFILE,
+                )
+                try:
+                    profile = load_profile(profile_name)
+                    topic_boost = profile.retrieval.topic_score_boost
+                    drill_down_top_k = profile.retrieval.drill_down_top_k
+                except FileNotFoundError:
+                    topic_boost = settings.KNOWLEDGE_TOPIC_SCORE_BOOST
+                    drill_down_top_k = 5
+
+                memories = apply_topic_score_boost(memories, topic_boost)
+
+                # v1: explicit drill_down flag only; auto citation-seeking heuristics deferred v2.
+                if drill_down:
+                    paper_ids = extract_drill_down_paper_ids(
+                        memories,
+                        top_k=drill_down_top_k,
+                    )
+                    if paper_ids:
+                        paper_filter = build_paper_drill_down_filter(paper_ids)
+                        if use_hybrid:
+                            paper_memories = await self.qdrant_service.hybrid_search(
+                                collection_name=collection_name,
+                                query_text=query,
+                                top_k=len(paper_ids),
+                                fusion_method=fusion_method,
+                                filters=paper_filter,
+                            )
+                        else:
+                            paper_memories = await self.qdrant_service.dense_search(
+                                collection_name=collection_name,
+                                query_text=query,
+                                top_k=len(paper_ids),
+                                filters=paper_filter,
+                            )
+                        memories = merge_drill_down_memories(memories, paper_memories)
+                        logger.info(
+                            "DocumentStore: Drill-down added {} paper summaries "
+                            "from {} linked IDs",
+                            len(paper_memories),
+                            len(paper_ids),
+                        )
 
             logger.info(f"DocumentStore: Recalled {len(memories)} relevant memories")
 
