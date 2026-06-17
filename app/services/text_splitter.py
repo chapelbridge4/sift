@@ -7,6 +7,18 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
+# Shared sentence boundary — used by chunkers and knowledge claim extraction.
+SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def split_sentences(text: str) -> List[str]:
+    """Split *text* into sentences at ``.!?`` boundaries (lightweight rules)."""
+    text = text.strip()
+    if not text:
+        return []
+    parts = SENTENCE_BOUNDARY_RE.split(text)
+    return [p.strip() for p in parts if p.strip()]
+
 
 @dataclass
 class ChunkResult:

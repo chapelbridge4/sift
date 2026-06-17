@@ -21,6 +21,7 @@ chardet==5.2.0
 # Text processing and embeddings
 sentence-transformers==5.4.1
 tokenizers==0.20.3
+scikit-learn>=1.4
 
 # GGUF / llama.cpp inference (default backend)
 llama-cpp-python>=0.3.0
