@@ -184,6 +184,25 @@ class Settings(BaseSettings):
                     "set to an absolute path (or launch the server from the project root) for stable behaviour."
     )
 
+    # make_knowledge corpus-intelligence pipeline
+    KNOWLEDGE_GGUF_MODEL_PATH: str = Field(
+        default="~/.cache/gguf/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        description="Tier 1/2 LLM GGUF path (separate from RAG GGUF_MODEL_PATH)",
+    )
+    KNOWLEDGE_OUTPUT_DIR: str = Field(
+        default="",
+        description="Artifact output root; empty → {ALLOWED_CORPUS_DIR}/.knowledge at use time",
+    )
+    KNOWLEDGE_PROFILE: str = Field(
+        default="papers",
+        description="Default knowledge profile name (profiles/knowledge_<name>.toml)",
+    )
+    KNOWLEDGE_TOPIC_SCORE_BOOST: float = Field(
+        default=1.2,
+        ge=1.0,
+        description="Post-retrieval score multiplier for doc_type=topic chunks",
+    )
+
     # Document Processing
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 128
