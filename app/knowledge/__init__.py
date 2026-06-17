@@ -1,0 +1,1 @@
+"""Corpus intelligence pipeline — make_knowledge (topic sheets + paper summaries)."""
