@@ -8,6 +8,7 @@ cd "$ROOT"
 
 PYTHON="${ROOT}/.venv/bin/python"
 GUARD="${ROOT}/scripts/hardware_guard.sh"
+DISK_GUARD="${ROOT}/scripts/disk_guard.sh"
 MODEL="${HOME}/.cache/gguf/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
 LOG_DIR="${ROOT}/reports/knowledge"
 LOG="${LOG_DIR}/auto_run.log"
@@ -117,8 +118,18 @@ print(f"Updated BENCHMARKS.md: chunks={chunks} recall={recall:.3f}")
 PY
 }
 
+ensure_disk_space() {
+  if bash "$DISK_GUARD" >>"$LOG" 2>&1; then
+    log "disk_guard passed"
+    return 0
+  fi
+  log "disk_guard low — running --free cleanup"
+  bash "$DISK_GUARD" --free >>"$LOG" 2>&1
+}
+
 main() {
   log "=== knowledge_wait_and_run start (poll=${POLL_SEC}s max=${MAX_WAIT_HOURS}h) ==="
+  ensure_disk_space
   if acceptance_already_passed; then
     log "acceptance already passed — skipping build (see reports/knowledge/acceptance.json)"
     update_benchmarks || true
