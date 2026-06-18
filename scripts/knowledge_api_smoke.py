@@ -210,6 +210,56 @@ def run_smoke(
     return report
 
 
+def run_generation_smoke(
+    base_url: str,
+    collection: str,
+    *,
+    model_profile: str = "fast",
+) -> dict[str, Any]:
+    """Single live query with MLX generation + drill_down (needs ~2.6 GB headroom)."""
+    query = "How do language models transcribe endangered languages?"
+    with httpx.Client() as client:
+        t0 = time.perf_counter()
+        resp = client.post(
+            f"{base_url}/query",
+            json={
+                "collection_name": collection,
+                "query": query,
+                "top_k": 5,
+                "use_llm": True,
+                "drill_down": True,
+                "include_metadata": True,
+                "model_profile": model_profile,
+            },
+            timeout=300.0,
+        )
+        elapsed = round(time.perf_counter() - t0, 2)
+        resp.raise_for_status()
+        data = resp.json()
+
+    answer = (data.get("answer") or "").strip()
+    docs = data.get("retrieved_documents", [])
+    doc_types = _doc_types(docs)
+    has_citation_hint = any(
+        token in answer
+        for token in ("[paper:", "[topic:", "WARDEN", "language model")
+    )
+
+    return {
+        "query": query,
+        "model_profile": model_profile,
+        "model_used": data.get("model_used"),
+        "processing_time_s": data.get("processing_time_seconds", elapsed),
+        "answer_chars": len(answer),
+        "answer_preview": answer[:400],
+        "retrieved_docs": len(docs),
+        "doc_types": doc_types,
+        "knowledge_built": _knowledge_built(docs),
+        "has_citation_hint": has_citation_hint,
+        "passed": bool(answer) and _knowledge_built(docs) and "paper_summary" in doc_types,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Live API smoke for make_knowledge")
     p.add_argument("--base-url", default="", help="Running API base URL (skip spawn)")
@@ -218,7 +268,32 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--probes", default="data/evaluation/papers_probes.json")
     p.add_argument("--top-k", type=int, default=10)
     p.add_argument("--output", default="reports/knowledge/api_smoke.json")
+    p.add_argument(
+        "--with-llm",
+        action="store_true",
+        help="Also run one MLX generation query (drill_down=true, model_profile=fast)",
+    )
+    p.add_argument("--model-profile", default="fast")
+    p.add_argument(
+        "--wait-ram-sec",
+        type=int,
+        default=0,
+        help="Poll hardware_guard up to N seconds before --with-llm (0=skip)",
+    )
     return p.parse_args()
+
+
+def _wait_for_ram(max_sec: int) -> bool:
+    guard = ROOT / "scripts" / "hardware_guard.sh"
+    deadline = time.monotonic() + max_sec
+    while time.monotonic() < deadline:
+        result = subprocess.run(["bash", str(guard)], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("hardware_guard passed")
+            return True
+        time.sleep(10)
+    print("hardware_guard still failing — attempting --with-llm anyway")
+    return False
 
 
 def main() -> int:
@@ -238,12 +313,26 @@ def main() -> int:
             health = _wait_for_health(base_url, _STARTUP_TIMEOUT_S)
             print(f"health: {health.get('status')} qdrant={health.get('qdrant_connected')}")
 
+        if args.with_llm and args.wait_ram_sec > 0:
+            _wait_for_ram(args.wait_ram_sec)
+
         report = run_smoke(
             base_url=base_url,
             collection=args.collection,
             probes_path=probes_path,
             top_k=args.top_k,
         )
+
+        if args.with_llm:
+            print("=== generation smoke (use_llm=true, drill_down=true) ===")
+            gen = run_generation_smoke(
+                base_url,
+                args.collection,
+                model_profile=args.model_profile,
+            )
+            report["generation"] = gen
+            report["passed"] = report["passed"] and gen["passed"]
+
         print(json.dumps(report, indent=2))
 
         out = Path(args.output)
