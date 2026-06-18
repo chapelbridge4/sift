@@ -69,6 +69,16 @@ run_acceptance() {
     --output reports/knowledge/acceptance.json 2>&1 | tee -a "$LOG"
 }
 
+acceptance_already_passed() {
+  local report="${LOG_DIR}/acceptance.json"
+  [[ -f "$report" ]] || return 1
+  "$PYTHON" - <<'PY' "$report"
+import json, sys
+report = json.loads(open(sys.argv[1]).read())
+sys.exit(0 if report.get("acceptance", {}).get("passed") else 1)
+PY
+}
+
 update_benchmarks() {
   log "=== Updating BENCHMARKS.md from acceptance.json ==="
   "$PYTHON" - <<'PY' 2>&1 | tee -a "$LOG"
@@ -86,22 +96,35 @@ chunks = report["eval"]["chunk_count"]
 recall = report["eval"]["avg_keyword_recall"]
 papers = report["artifacts"]["papers"]
 topics = report["artifacts"]["topics"]
+measured = __import__("datetime").datetime.utcnow().strftime("%Y-%m-%d")
 
 text = bench_path.read_text()
-old_row = "| make_knowledge  | TBD     | TBD       | Target: <1,000 chunks, >0.50 recall        |"
-new_row = (
-    f"| make_knowledge  | {chunks:,}  | {recall:.3f}     | "
-    f"{papers} papers, {topics} topics — measured {__import__('datetime').datetime.utcnow().strftime('%Y-%m-%d')} |"
-)
-if old_row not in text:
-    raise SystemExit("BENCHMARKS.md row not found — update manually")
-bench_path.write_text(text.replace(old_row, new_row))
+if "| make_knowledge  | TBD" in text:
+    old_row = "| make_knowledge  | TBD     | TBD       | Target: <1,000 chunks, >0.50 recall        |"
+    new_row = (
+        f"| make_knowledge  | {chunks:,}  | {recall:.3f}     | "
+        f"{papers} papers, {topics} topics — measured {measured} |"
+    )
+    text = text.replace(old_row, new_row)
+elif f"| make_knowledge  | {chunks:,}" in text or f"| make_knowledge  | {chunks} " in text:
+    print(f"BENCHMARKS.md already has make_knowledge row (chunks={chunks})")
+    raise SystemExit(0)
+else:
+    raise SystemExit("BENCHMARKS.md make_knowledge row not found — update manually")
+
+bench_path.write_text(text)
 print(f"Updated BENCHMARKS.md: chunks={chunks} recall={recall:.3f}")
 PY
 }
 
 main() {
   log "=== knowledge_wait_and_run start (poll=${POLL_SEC}s max=${MAX_WAIT_HOURS}h) ==="
+  if acceptance_already_passed; then
+    log "acceptance already passed — skipping build (see reports/knowledge/acceptance.json)"
+    update_benchmarks || true
+    log "=== DONE (cached acceptance) ==="
+    return 0
+  fi
   wait_for_model
   wait_for_ram
   run_phase0
