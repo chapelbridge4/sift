@@ -110,6 +110,33 @@ async def _maybe_build(args: argparse.Namespace, profile) -> Path:
     return artifact_dir
 
 
+async def _ensure_indexed(
+    collection_name: str,
+    artifact_dir: Path,
+    profile,
+) -> int:
+    """Index artifacts when collection is missing or empty (eval-only path)."""
+    qdrant = QdrantService()
+    await qdrant.initialize()
+    try:
+        info = await qdrant.get_collection_info(collection_name)
+        points = info.get("points_count") or info.get("vectors_count") or 0
+    except Exception:
+        points = 0
+
+    if points > 0:
+        print(f"  collection {collection_name} already has {points} points — skip index")
+        return points
+
+    print(f"  indexing artifacts from {artifact_dir} → {collection_name}")
+    return await index_artifacts(
+        collection_name=collection_name,
+        artifact_dir=artifact_dir,
+        profile=profile,
+        qdrant_service=qdrant,
+    )
+
+
 async def _eval_collection(
     collection_name: str,
     probes_path: Path,
@@ -214,6 +241,8 @@ async def _run(args: argparse.Namespace) -> dict:
             artifact_dir = Path(settings.ALLOWED_CORPUS_DIR) / ".knowledge" / args.collection
 
     artifact_stats = _artifact_stats(artifact_dir)
+    if not args.build:
+        await _ensure_indexed(args.collection, artifact_dir, profile)
     eval_report = await _eval_collection(args.collection, probes_path, args.top_k)
 
     report = {

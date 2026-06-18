@@ -92,6 +92,30 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_index(args: argparse.Namespace) -> int:
+    profile = load_profile(args.profile)
+    output_dir = _resolve_output_dir(args)
+    artifact_dir = output_dir / args.collection
+    if not artifact_dir.is_dir():
+        logging.error("artifact directory does not exist: %s", artifact_dir)
+        return 1
+
+    qdrant = QdrantService()
+    asyncio.run(qdrant.initialize())
+    indexed = asyncio.run(
+        index_artifacts(
+            collection_name=args.collection,
+            artifact_dir=artifact_dir,
+            profile=profile,
+            qdrant_service=qdrant,
+        )
+    )
+    print(f"profile={profile.name} collection={args.collection}")
+    print(f"artifact chunks indexed={indexed}")
+    print(f"artifacts → {artifact_dir}")
+    return 0 if indexed > 0 else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="knowledge",
@@ -131,6 +155,23 @@ def build_parser() -> argparse.ArgumentParser:
         skip_index=False,
         skip_hardware_guard=False,
     )
+
+    index_cmd = sub.add_parser(
+        "index",
+        help="Index existing knowledge artifacts into Qdrant (no LLM rebuild)",
+    )
+    index_cmd.add_argument("--collection", required=True, help="Qdrant collection name")
+    index_cmd.add_argument(
+        "--profile",
+        default="papers",
+        help="Knowledge profile name (knowledge_<name>.toml)",
+    )
+    index_cmd.add_argument(
+        "--output",
+        default=None,
+        help="Artifact output root (default: {ALLOWED_CORPUS_DIR}/.knowledge)",
+    )
+    index_cmd.set_defaults(func=cmd_index)
 
     return parser
 

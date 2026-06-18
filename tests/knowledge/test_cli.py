@@ -11,6 +11,14 @@ from app.knowledge.cli import build_parser, cmd_build, main
 from app.knowledge.models import KnowledgeStats
 
 
+def test_index_parser_requires_collection():
+    parser = build_parser()
+    args = parser.parse_args(["index", "--collection", "ai_papers_knowledge"])
+    assert args.command == "index"
+    assert args.collection == "ai_papers_knowledge"
+    assert args.profile == "papers"
+
+
 def test_build_parser_requires_input_and_collection():
     parser = build_parser()
     with pytest.raises(SystemExit):
@@ -98,6 +106,30 @@ def test_cmd_build_runs_pipeline_and_indexes(
     call_kwargs = mock_index.await_args.kwargs
     assert call_kwargs["collection_name"] == "test_coll"
     assert call_kwargs["artifact_dir"] == output_dir / "test_coll"
+
+
+@patch("app.knowledge.cli.index_artifacts", new_callable=AsyncMock)
+@patch("app.knowledge.cli.QdrantService")
+def test_cmd_index_upserts_existing_artifacts(mock_qdrant_cls, mock_index, tmp_path):
+    artifact_dir = tmp_path / "out" / "test_coll"
+    (artifact_dir / "papers").mkdir(parents=True)
+    (artifact_dir / "papers" / "p.md").write_text("---\n---\n", encoding="utf-8")
+
+    mock_qdrant = MagicMock()
+    mock_qdrant.initialize = AsyncMock()
+    mock_qdrant_cls.return_value = mock_qdrant
+    mock_index.return_value = 5
+
+    args = MagicMock()
+    args.collection = "test_coll"
+    args.profile = "papers"
+    args.output = str(tmp_path / "out")
+
+    from app.knowledge.cli import cmd_index
+
+    code = cmd_index(args)
+    assert code == 0
+    mock_index.assert_awaited_once()
 
 
 @patch("app.knowledge.cli.cmd_build", return_value=0)
