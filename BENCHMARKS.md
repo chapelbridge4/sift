@@ -97,9 +97,27 @@ Generated: 2026-06-14, sift-flagship-v0.1 branch.
 
 ## make_knowledge (pending acceptance run)
 
-Corpus-intelligence ingest vs raw PDF chunk baseline on the same paper corpus. Knowledge row is **TBD** until a real acceptance run with `./scripts/hardware_guard.sh` + `python -m app.knowledge build`.
+Corpus-intelligence ingest vs raw PDF chunk baseline on the `papers/` corpus (30 PDFs, gitignored). Knowledge row is **TBD** until a real run with sufficient free RAM (`./scripts/hardware_guard.sh` exit 0).
 
 | Mode            | Chunks  | recall@10 | Notes                                      |
 |-----------------|--------:|----------:|--------------------------------------------|
 | raw ingest      | 66,941  | 0.254     | Baseline (keyword-recall proxy, same corpus) |
 | make_knowledge  | TBD     | TBD       | Target: <1,000 chunks, >0.50 recall        |
+
+**Reproducibility (when hardware guard passes):**
+
+```bash
+# Phase 0: lock knowledge LLM on 3 papers (~2.5 GB model download first)
+huggingface-cli download unsloth/Qwen3-4B-Instruct-2507-GGUF \
+  Qwen3-4B-Instruct-2507-Q4_K_M.gguf --local-dir ~/.cache/gguf
+./scripts/hardware_guard.sh
+.venv/bin/python scripts/knowledge_phase0_smoke.py --papers 3 --output reports/knowledge/phase0_smoke.json
+
+# Full acceptance: build + keyword-recall eval (updates report JSON; paste real numbers here)
+.venv/bin/python scripts/knowledge_acceptance.py --build \
+  --input papers/ --collection ai_papers_knowledge --profile papers \
+  --probes data/evaluation/papers_probes.json \
+  --output reports/knowledge/acceptance.json
+```
+
+Probes: `data/evaluation/papers_probes.json` (8 queries, keyword-recall@10 proxy — same metric family as the 0.254 baseline).

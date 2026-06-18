@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "description": "Keyword-recall probes for papers/ corpus acceptance (make_knowledge vs raw ingest)",
+  "queries": [
+    {
+      "id": "llm-translation",
+      "query": "How do language models transcribe or translate endangered languages?",
+      "expected_keywords": ["language", "model", "translat"]
+    },
+    {
+      "id": "voice-agents",
+      "query": "What are voice agents and how do AI systems handle spoken conversation?",
+      "expected_keywords": ["voice", "agent", "spoken"]
+    },
+    {
+      "id": "llm-finetuning",
+      "query": "How does finetuning affect LLM behavior on false or negated claims?",
+      "expected_keywords": ["finetun", "LLM", "claim"]
+    },
+    {
+      "id": "llm-agents",
+      "query": "How do frontier LLMs act as agents selecting actions from context?",
+      "expected_keywords": ["agent", "LLM", "action"]
+    },
+    {
+      "id": "agentic-evolution",
+      "query": "What is agentic evolution for improving programs and workflows?",
+      "expected_keywords": ["agentic", "evolution", "workflow"]
+    },
+    {
+      "id": "requirements",
+      "query": "How are natural-language software requirements validated for safety?",
+      "expected_keywords": ["requirement", "software", "ambiguous"]
+    },
+    {
+      "id": "retrieval-rag",
+      "query": "How does retrieval augmented generation improve search over documents?",
+      "expected_keywords": ["retriev", "document", "generat"]
+    },
+    {
+      "id": "embedding-search",
+      "query": "How do dense embeddings support semantic search over a corpus?",
+      "expected_keywords": ["embed", "semantic", "search"]
+    }
+  ]
+}
