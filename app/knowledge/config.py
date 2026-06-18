@@ -24,6 +24,9 @@ class TierLLMCfg:
     max_output_tokens: int
     temperature: float
     max_claims_per_paper: int = 5
+    max_spans_per_paper: int = 20
+    max_sections_in_outline: int = 8
+    section_preview_chars: int = 80
 
 
 @dataclass(frozen=True)

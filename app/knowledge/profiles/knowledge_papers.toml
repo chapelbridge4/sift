@@ -12,6 +12,9 @@ max_sentences_per_claim = 3
 [tier1]
 max_output_tokens = 800
 temperature = 0.2
+max_spans_per_paper = 20
+max_sections_in_outline = 8
+section_preview_chars = 80
 
 [tier2]
 max_output_tokens = 1200

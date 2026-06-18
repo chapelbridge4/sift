@@ -25,14 +25,22 @@ class PaperExtractOutput(BaseModel):
     topic_tags: list[str] = Field(default_factory=list)
 
 
-def _section_outline(parsed_doc: ParsedDoc) -> str:
+def _section_outline(parsed_doc: ParsedDoc, profile: KnowledgeProfile) -> str:
+    tier1 = profile.tier1
     lines: list[str] = []
-    for section in parsed_doc.sections:
+    for section in parsed_doc.sections[: tier1.max_sections_in_outline]:
         name = section["name"] if isinstance(section, dict) else section.name
         text = section["text"] if isinstance(section, dict) else section.text
-        preview = " ".join(text.split())[:120]
+        preview = " ".join(text.split())[: tier1.section_preview_chars]
         lines.append(f"- {name}: {preview}...")
     return "\n".join(lines) if lines else "(no sections)"
+
+
+def _select_spans_for_prompt(
+    spans: Sequence[ClaimSpan], profile: KnowledgeProfile
+) -> list[ClaimSpan]:
+    """Cap spans so Tier 1 prompt fits n_ctx (spans are section-priority ordered)."""
+    return list(spans[: profile.tier1.max_spans_per_paper])
 
 
 def _format_claim_spans(spans: Sequence[ClaimSpan]) -> str:
@@ -52,21 +60,23 @@ async def extract_paper(
     title = getattr(parsed_doc, "title", None) or parsed_doc.paper_id
     authors = getattr(parsed_doc, "authors", None) or []
 
+    selected_spans = _select_spans_for_prompt(top_spans, profile)
     prompt = format_prompt(
         contract,
         paper_id=parsed_doc.paper_id,
         title=title,
         authors=", ".join(authors) if authors else "(unknown)",
         source_file=parsed_doc.source_file,
-        section_outline=_section_outline(parsed_doc),
-        claim_spans=_format_claim_spans(top_spans),
+        section_outline=_section_outline(parsed_doc, profile),
+        claim_spans=_format_claim_spans(selected_spans),
         max_output_tokens=profile.tier1.max_output_tokens,
     )
 
     logger.info(
-        "tier1 extract paper_id={} span_count={}",
+        "tier1 extract paper_id={} span_count={} prompt_spans={}",
         parsed_doc.paper_id,
         len(top_spans),
+        len(selected_spans),
     )
 
     extracted = await llm.extract(

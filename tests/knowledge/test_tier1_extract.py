@@ -65,6 +65,39 @@ def test_extract_paper_calls_llm_and_returns_summary(caplog):
         assert "We improve retrieval augmented generation." not in record.message
 
 
+def test_extract_paper_caps_spans_in_prompt():
+    parsed = _ParsedDoc(
+        paper_id="p1",
+        source_file="papers/p1.pdf",
+        title="T",
+        authors=[],
+        sections=[_Section("abstract", "Short abstract.")],
+    )
+    spans = [
+        ClaimSpan(
+            paper_id="p1",
+            text=f"Claim number {i} with enough text to matter.",
+            section="abstract",
+            embedding_id=f"e{i}",
+        )
+        for i in range(50)
+    ]
+    backend = AsyncMock()
+    backend.generate_structured = AsyncMock(
+        return_value=(
+            '{"title":"T","authors":[],"claims":[],"methods":"","results":"",'
+            '"limitations":"","topic_tags":[]}'
+        )
+    )
+    llm = KnowledgeLLM(backend)
+    profile = load_profile("papers")
+
+    asyncio.run(extract_paper(parsed, spans, llm, profile))
+
+    prompt = backend.generate_structured.await_args.args[0]
+    assert prompt.count("Claim number") == profile.tier1.max_spans_per_paper
+
+
 def test_extract_paper_uses_profile_token_cap():
     parsed = _ParsedDoc(
         paper_id="p1",

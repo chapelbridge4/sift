@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from pathlib import Path
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
@@ -117,8 +118,8 @@ def _parse_json_object(text: str) -> dict[str, Any]:
 def _resolve_knowledge_model_path(profile: KnowledgeProfile) -> str:
     settings = get_settings()
     if profile.llm.model_path:
-        return profile.llm.model_path
-    return settings.KNOWLEDGE_GGUF_MODEL_PATH
+        return str(Path(profile.llm.model_path).expanduser())
+    return str(Path(settings.KNOWLEDGE_GGUF_MODEL_PATH).expanduser())
 
 
 def build_knowledge_llm(profile: KnowledgeProfile | str | None = None) -> KnowledgeLLM:

@@ -55,12 +55,16 @@ def _resolve_model_path(settings, *, model_path: Optional[str] = None) -> Option
     2. settings.GGUF_MODEL_PATH (explicit override)
     3. ~/.cache/gguf/<filename>
     """
-    if model_path and Path(model_path).exists():
-        return model_path
+    if model_path:
+        expanded = Path(model_path).expanduser()
+        if expanded.exists():
+            return str(expanded)
 
     explicit = getattr(settings, "GGUF_MODEL_PATH", None)
-    if explicit and Path(explicit).exists():
-        return explicit
+    if explicit:
+        expanded = Path(explicit).expanduser()
+        if expanded.exists():
+            return str(expanded)
 
     default_path = Path.home() / ".cache" / "gguf" / _DEFAULT_FILENAME
     if default_path.exists():
