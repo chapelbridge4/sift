@@ -38,27 +38,41 @@ def contributing_papers(
     return [p for p in paper_summaries if p.paper_id in paper_ids]
 
 
+def _truncate_field(text: str, max_chars: int) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[: max_chars - 3] + "..."
+
+
 def _format_paper_summaries(
-    summaries: Sequence[PaperSummary], *, max_claims_per_paper: int
+    summaries: Sequence[PaperSummary],
+    *,
+    max_claims_per_paper: int,
+    max_papers: int,
+    field_preview_chars: int,
 ) -> str:
     blocks: list[str] = []
-    for paper in summaries:
+    for paper in summaries[:max_papers]:
         claims = "; ".join(c.text for c in paper.claims[:max_claims_per_paper])
         blocks.append(
             f"### {paper.paper_id}: {paper.title}\n"
             f"Topics: {', '.join(paper.topics)}\n"
             f"Claims: {claims}\n"
-            f"Methods: {paper.methods}\n"
-            f"Results: {paper.results}\n"
-            f"Limitations: {paper.limitations}"
+            f"Methods: {_truncate_field(paper.methods, field_preview_chars)}\n"
+            f"Results: {_truncate_field(paper.results, field_preview_chars)}\n"
+            f"Limitations: {_truncate_field(paper.limitations, field_preview_chars)}"
         )
     return "\n\n".join(blocks) if blocks else "(no papers)"
 
 
-def _format_conflicting_spans(spans: Sequence[ClaimSpan]) -> str:
+def _format_conflicting_spans(
+    spans: Sequence[ClaimSpan], *, max_spans: int
+) -> str:
     if not spans:
         return "(none flagged)"
-    return "\n".join(f"- [{s.paper_id}/{s.section}] {s.text}" for s in spans)
+    selected = list(spans[:max_spans])
+    return "\n".join(f"- [{s.paper_id}/{s.section}] {s.text}" for s in selected)
 
 
 async def merge_topic(
@@ -79,8 +93,13 @@ async def merge_topic(
         paper_summaries=_format_paper_summaries(
             contributing,
             max_claims_per_paper=profile.tier2.max_claims_per_paper,
+            max_papers=profile.tier2.max_papers_in_merge,
+            field_preview_chars=profile.tier2.field_preview_chars,
         ),
-        conflicting_spans=_format_conflicting_spans(cluster.spans),
+        conflicting_spans=_format_conflicting_spans(
+            cluster.spans,
+            max_spans=profile.tier2.max_spans_in_merge,
+        ),
         max_output_tokens=profile.tier2.max_output_tokens,
     )
 

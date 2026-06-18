@@ -95,16 +95,20 @@ Generated: 2026-06-14, sift-flagship-v0.1 branch.
 
 ---
 
-## make_knowledge (pending acceptance run)
+## make_knowledge (papers corpus)
 
-Corpus-intelligence ingest vs raw PDF chunk baseline on the `papers/` corpus (30 PDFs, gitignored). Knowledge row is **TBD** until a real run with sufficient free RAM (`./scripts/hardware_guard.sh` exit 0).
+Corpus-intelligence ingest vs raw PDF chunk baseline on the `papers/` corpus (30 PDFs, gitignored).
+Metric: keyword-recall@10 proxy over 8 probes (`data/evaluation/papers_probes.json`) — same family as the 0.254 baseline.
 
-| Mode            | Chunks  | recall@10 | Notes                                      |
-|-----------------|--------:|----------:|--------------------------------------------|
-| raw ingest      | 66,941  | 0.254     | Baseline (keyword-recall proxy, same corpus) |
-| make_knowledge  | TBD     | TBD       | Target: <1,000 chunks, >0.50 recall        |
+| Mode            | Chunks | recall@10 | Notes                                           |
+|-----------------|-------:|----------:|-------------------------------------------------|
+| raw ingest      | 66,941 | 0.254     | Baseline (keyword-recall proxy, same corpus)      |
+| make_knowledge  | 887    | 0.750     | 30 papers → 19 topics, 149 links; 75× fewer chunks |
 
-**Reproducibility (when hardware guard passes):**
+Measured: 2026-06-18, `feat/sift-v1.1-rename`, M1 8 GB. Build ~2.3 h (30 papers, Qwen3-4B-Instruct-2507-Q4_K_M).
+Phase 0 smoke: 3/3 valid JSON in 466 s. Report: [acceptance.json](reports/knowledge/acceptance.json).
+
+**Reproducibility:**
 
 ```bash
 # Phase 0: lock knowledge LLM on 3 papers (~2.5 GB model download first)
@@ -113,11 +117,16 @@ huggingface-cli download unsloth/Qwen3-4B-Instruct-2507-GGUF \
 ./scripts/hardware_guard.sh
 .venv/bin/python scripts/knowledge_phase0_smoke.py --papers 3 --output reports/knowledge/phase0_smoke.json
 
-# Full acceptance: build + keyword-recall eval (updates report JSON; paste real numbers here)
+# Full acceptance: build + keyword-recall eval
 .venv/bin/python scripts/knowledge_acceptance.py --build \
   --input papers/ --collection ai_papers_knowledge --profile papers \
   --probes data/evaluation/papers_probes.json \
   --output reports/knowledge/acceptance.json
-```
 
-Probes: `data/evaluation/papers_probes.json` (8 queries, keyword-recall@10 proxy — same metric family as the 0.254 baseline).
+# Eval only (artifacts + index already built):
+.venv/bin/python scripts/knowledge_acceptance.py \
+  --collection ai_papers_knowledge \
+  --artifact-dir data/corpus/.knowledge/ai_papers_knowledge \
+  --skip-hardware-guard \
+  --output reports/knowledge/acceptance.json
+```

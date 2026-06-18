@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from app.knowledge.config import KnowledgeProfile
 from app.knowledge.models import Claim, ClaimSpan, PaperSummary, TopicSheet, TopicSource
 from app.knowledge.tier1_extract import slugify
 from app.knowledge.tier2_merge import TopicCluster, contributing_papers
@@ -62,18 +63,24 @@ def paper_summary_from_spans(parsed_doc: object, spans: list[ClaimSpan]) -> Pape
 def degraded_topic_sheet(
     cluster: TopicCluster,
     paper_summaries: list[PaperSummary],
+    profile: KnowledgeProfile,
 ) -> TopicSheet:
-    """Tier 2 fallback: raw concatenation of cluster spans and paper digests."""
+    """Tier 2 fallback: capped concatenation of cluster spans and paper digests."""
+    tier2 = profile.tier2
     contributing = contributing_papers(cluster, paper_summaries)
     links_to = sorted({p.paper_id for p in contributing})
+    spans = list(cluster.spans[: tier2.max_spans_in_merge])
+    omitted_spans = len(cluster.spans) - len(spans)
 
     body_lines = [f"# {cluster.label}", "", "## Cluster spans", ""]
-    for span in cluster.spans:
+    for span in spans:
         body_lines.append(f"- [{span.paper_id}/{span.section}] {span.text}")
+    if omitted_spans > 0:
+        body_lines.append(f"- ... ({omitted_spans} additional spans omitted)")
     body_lines.extend(["", "## Paper digests", ""])
-    for paper in contributing:
+    for paper in contributing[: tier2.max_papers_in_merge]:
         body_lines.append(f"### {paper.paper_id}: {paper.title}")
-        for claim in paper.claims:
+        for claim in paper.claims[: tier2.max_claims_per_paper]:
             section = f" ({claim.section})" if claim.section else ""
             body_lines.append(f"- {claim.text}{section}")
         body_lines.append("")

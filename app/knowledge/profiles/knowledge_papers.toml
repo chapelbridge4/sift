@@ -20,6 +20,9 @@ section_preview_chars = 80
 max_output_tokens = 1200
 temperature = 0.3
 max_claims_per_paper = 5
+max_papers_in_merge = 6
+max_spans_in_merge = 15
+field_preview_chars = 200
 
 [llm]
 backend = "gguf"

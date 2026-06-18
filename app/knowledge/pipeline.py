@@ -120,7 +120,9 @@ class KnowledgePipeline:
                         type(exc).__name__,
                         exc,
                     )
-                    topic_sheets.append(degraded_topic_sheet(cluster, paper_summaries))
+                    topic_sheets.append(
+                        degraded_topic_sheet(cluster, paper_summaries, self._profile)
+                    )
         else:
             log.warning("tier=0 zero_clusters — paper summaries only (degraded Option B)")
 

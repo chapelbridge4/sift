@@ -27,6 +27,9 @@ class TierLLMCfg:
     max_spans_per_paper: int = 20
     max_sections_in_outline: int = 8
     section_preview_chars: int = 80
+    max_papers_in_merge: int = 6
+    max_spans_in_merge: int = 15
+    field_preview_chars: int = 200
 
 
 @dataclass(frozen=True)

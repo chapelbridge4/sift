@@ -29,6 +29,22 @@ async def index_artifacts(
         logger.warning("index_artifacts: no artifacts under {}", artifact_dir)
         return 0
 
+    if hasattr(qdrant_service, "collection_exists") and hasattr(
+        qdrant_service, "create_collection"
+    ):
+        exists = await qdrant_service.collection_exists(collection_name)
+        if exists and hasattr(qdrant_service, "delete_collection"):
+            await qdrant_service.delete_collection(collection_name)
+            exists = False
+        if not exists:
+            from app.config import get_settings
+
+            settings = get_settings()
+            await qdrant_service.create_collection(
+                collection_name=collection_name,
+                dense_vector_size=settings.DENSE_VECTOR_SIZE,
+            )
+
     chunker = MarkdownChunker(
         chunk_size=profile.chunk.chunk_size,
         chunk_overlap=profile.chunk.chunk_overlap,

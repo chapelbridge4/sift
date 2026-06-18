@@ -61,7 +61,7 @@ def test_degraded_topic_sheet_concatenates_and_flags_degraded():
     papers = [
         PaperSummary(paper_id="p1", title="P1", source_file="p1.pdf", claims=[]),
     ]
-    sheet = degraded_topic_sheet(cluster, papers)
+    sheet = degraded_topic_sheet(cluster, papers, load_profile("papers"))
     assert sheet.degraded is True
     assert sheet.links_to == ["p1"]
     assert "Span A text." in sheet.body
